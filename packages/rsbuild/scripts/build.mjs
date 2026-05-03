@@ -16,7 +16,6 @@ await mkdir(distDir, { recursive: true });
 const external = [
   "@rs-marko-run/core",
   "@rs-marko-run/core/*",
-  "@rsbuild/core",
   "@rspack/core",
   "@marko/run",
   "@marko/run/*",

@@ -8,11 +8,11 @@
     "preview": "PORT=${PORT:-4200} rsbuild preview"
   },
   "dependencies": {
+    "@rsbuild/core": "2.0.3",
     "marko": "5.38.2"
   },
   "devDependencies": {
     "@rs-marko-run/rsbuild": "file:../../packages/rsbuild",
-    "@rsbuild/core": "2.0.3",
     "rsbuild-plugin-marko": "file:../../../rsbuild-plugin-marko",
     "sass": "^1.93.2"
   }

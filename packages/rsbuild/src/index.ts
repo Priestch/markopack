@@ -30,6 +30,7 @@ import { getRouteVirtualFileName } from "@rs-marko-run/core/vite/utils/route";
 import { createMiddleware } from "@rs-marko-run/core/adapter/middleware";
 import { createRequire } from "module";
 const require = createRequire(import.meta.url);
+const rspack = require("@rspack/core");
 const markoRunRoot = require.resolve("@marko/run").replace(/(src|dist)[\\/]runtime[\\/].*$/, "");
 const markoRunRuntimeInternal = fs.existsSync(
   path.join(markoRunRoot, "dist/runtime/internal.js"),
@@ -73,6 +74,12 @@ export default function markoRunRsbuild(
   let tsConfigExists: boolean | undefined;
   let lastRouteHash = "";
   let routerReady = false;
+  let needsRouteRebuild = true;
+  let virtualModulesPlugin: InstanceType<
+    typeof rspack.experiments.VirtualModulesPlugin
+  >;
+  const virtualModules = new Map<string, string>();
+  let virtualStoreReady = false;
 
   return {
     name: PLUGIN_NAME,
@@ -240,21 +247,30 @@ export default function markoRunRsbuild(
           "virtual:marko-run": entryFilesDir,
         };
 
+        Object.assign(config.resolve.alias, aliasEntries);
+
         config.plugins ??= [];
-        config.plugins.push(
-          api.context.bundlerType === 'rspack'
-            ? new (require('@rspack/core').NormalModuleReplacementPlugin)(
-                /^virtual:marko-run\//,
-                (resource) => {
-                  if (resource.request === 'virtual:marko-run/runtime/internal') {
-                    resource.request = markoRunRuntimeInternal;
-                  } else {
-                    resource.request = resource.request.replace('virtual:marko-run', entryFilesDir);
-                  }
+        if (api.context.bundlerType === "rspack") {
+          virtualModulesPlugin = new rspack.experiments.VirtualModulesPlugin(
+            Object.fromEntries(virtualModules),
+          );
+          config.plugins.push(virtualModulesPlugin);
+          config.plugins.push(
+            new rspack.NormalModuleReplacementPlugin(
+              /^virtual:marko-run\//,
+              (resource) => {
+                if (resource.request === "virtual:marko-run/runtime/internal") {
+                  resource.request = markoRunRuntimeInternal;
+                } else {
+                  resource.request = resource.request.replace(
+                    "virtual:marko-run",
+                    entryFilesDir,
+                  );
                 }
-              )
-            : {}
-        );
+              },
+            ),
+          );
+        }
 
         if (opts.debug) {
           logger.info(
@@ -274,6 +290,12 @@ export default function markoRunRsbuild(
       api.onAfterCreateCompiler(({ compiler }) => {
         // Watch routes directory for changes in dev
         const hooks = (compiler as any).hooks;
+        if (hooks?.thisCompilation) {
+          hooks.thisCompilation.tap(PLUGIN_NAME, () => {
+            virtualStoreReady = true;
+            flushVirtualModules();
+          });
+        }
         if (hooks?.afterCompile) {
           hooks.afterCompile.tap(PLUGIN_NAME, (compilation: any) => {
             if (resolvedRoutesDir && fs.existsSync(resolvedRoutesDir)) {
@@ -294,6 +316,7 @@ export default function markoRunRsbuild(
         const newHash = hashRoutesDir();
         if (newHash !== lastRouteHash) {
           routerReady = false;
+          needsRouteRebuild = true;
           await rebuildRoutes();
         }
       });
@@ -371,13 +394,13 @@ export default function markoRunRsbuild(
           for (const route of routes.list) {
             const fileName = getRouteVirtualFileName(route);
             const filePath = path.join(entryFilesDir, fileName);
-            fs.writeFileSync(filePath, renderRouteEntry(route, entryFilesDir));
+            writeVirtualModule(filePath, renderRouteEntry(route, entryFilesDir));
           }
 
           // Write middleware file
           if (routes.middleware.length) {
             const filePath = path.join(entryFilesDir, MIDDLEWARE_FILENAME);
-            fs.writeFileSync(
+            writeVirtualModule(
               filePath,
               renderMiddleware(routes.middleware, entryFilesDir),
             );
@@ -386,12 +409,13 @@ export default function markoRunRsbuild(
           // Write router file
           const runtimeInclude = await adapter?.runtimeInclude?.();
           const routerPath = path.join(entryFilesDir, ROUTER_FILENAME);
-          fs.writeFileSync(
+          writeVirtualModule(
             routerPath,
             renderRouter(routes, entryFilesDir, runtimeInclude, { trailingSlashes }),
           );
 
           lastRouteHash = hashRoutesDir();
+          needsRouteRebuild = false;
 
           if (opts.debug) {
             logger.info(
@@ -403,7 +427,7 @@ export default function markoRunRsbuild(
           // Write error into router so it surfaces in browser
           const routerPath = path.join(entryFilesDir, ROUTER_FILENAME);
           fs.mkdirSync(entryFilesDir, { recursive: true });
-          fs.writeFileSync(
+          writeVirtualModule(
             routerPath,
             `throw new Error(${JSON.stringify(String(err))});`,
           );
@@ -419,11 +443,35 @@ export default function markoRunRsbuild(
           if (route.templateFilePath) {
             const dir = path.dirname(route.templateFilePath);
             fs.mkdirSync(dir, { recursive: true });
-            fs.writeFileSync(
+            writeVirtualModule(
               route.templateFilePath,
               renderRouteTemplate(route, undefined),
             );
           }
+        }
+      }
+
+      function writeVirtualModule(filepath: string, content: string) {
+        virtualModules.set(filepath, content);
+        fs.mkdirSync(path.dirname(filepath), { recursive: true });
+        fs.writeFileSync(filepath, content);
+        if (api.context.bundlerType === "rspack") {
+          if (virtualStoreReady && virtualModulesPlugin) {
+            virtualModulesPlugin.writeModule(filepath, content);
+          }
+        }
+      }
+
+      function flushVirtualModules() {
+        if (
+          api.context.bundlerType !== "rspack" ||
+          !virtualStoreReady ||
+          !virtualModulesPlugin
+        ) {
+          return;
+        }
+        for (const [filepath, content] of virtualModules) {
+          virtualModulesPlugin.writeModule(filepath, content);
         }
       }
 

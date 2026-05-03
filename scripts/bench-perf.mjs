@@ -43,11 +43,38 @@ function runTimedBuild(name, cwd) {
   return { name, buildSeconds: seconds };
 }
 
+function wait(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function stopDevProcess(proc) {
+  if (proc.exitCode != null) return;
+
+  // Kill the whole process group first (npm -> shell -> dev server).
+  try {
+    process.kill(-proc.pid, "SIGTERM");
+  } catch {
+    proc.kill("SIGTERM");
+  }
+
+  await Promise.race([new Promise((resolve) => proc.once("exit", resolve)), wait(1200)]);
+
+  if (proc.exitCode == null) {
+    try {
+      process.kill(-proc.pid, "SIGKILL");
+    } catch {
+      proc.kill("SIGKILL");
+    }
+    await Promise.race([new Promise((resolve) => proc.once("exit", resolve)), wait(1200)]);
+  }
+}
+
 async function measureDevReady(name, cwd, basePort) {
   cleanFixture(cwd);
   const proc = spawn("npm", ["run", "dev"], {
     cwd,
     shell: true,
+    detached: true,
     stdio: ["ignore", "pipe", "pipe"],
     env: { ...process.env, PORT: String(basePort) },
   });
@@ -83,7 +110,7 @@ async function measureDevReady(name, cwd, basePort) {
     const tail = logs.slice(-1200);
     throw new Error(`${name}: dev server did not become ready in time\n${tail}`);
   } finally {
-    proc.kill();
+    await stopDevProcess(proc);
   }
 }
 

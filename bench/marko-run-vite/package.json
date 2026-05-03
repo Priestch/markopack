@@ -1,0 +1,15 @@
+{
+  "name": "bench-marko-run-vite",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "PORT=${PORT:-4100} marko-run",
+    "build": "marko-run build",
+    "preview": "PORT=${PORT:-4100} marko-run preview"
+  },
+  "dependencies": {
+    "@marko/run": "0.9.7",
+    "marko": "5.38.2",
+    "sass": "^1.93.2"
+  }
+}

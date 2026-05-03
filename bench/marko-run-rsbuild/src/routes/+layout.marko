@@ -1,0 +1,228 @@
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>rs-marko-run multi-route demo</title>
+    <html-style>
+      :root {
+        --bg: #f4efe2;
+        --ink: #152423;
+        --muted: #5f6968;
+        --panel: rgba(255, 255, 255, 0.88);
+        --line: rgba(21, 36, 35, 0.13);
+        --accent: #b75a2f;
+        --accent-deep: #8d3f1f;
+        --teal: #1f786a;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        background:
+          radial-gradient(circle at 12% 10%, #e6d4b4 0%, rgba(230, 212, 180, 0) 42%),
+          radial-gradient(circle at 85% 84%, #d4ece4 0%, rgba(212, 236, 228, 0) 38%),
+          linear-gradient(160deg, #f5efe0 0%, var(--bg) 46%, #f1ece0 100%);
+        color: var(--ink);
+        font-family: "Spectral", "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Palatino, serif;
+      }
+
+      .page-shell {
+        position: relative;
+        z-index: 1;
+        max-width: 1040px;
+        margin: 0 auto;
+        padding: 2.7rem 1rem 3.4rem;
+        animation: fade-in 420ms ease both;
+      }
+
+      .card {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 20px;
+        box-shadow:
+          0 8px 24px rgba(17, 33, 28, 0.05),
+          0 24px 60px rgba(17, 33, 28, 0.08);
+        backdrop-filter: blur(8px);
+        padding: 1.3rem 1.4rem;
+        position: relative;
+        overflow: hidden;
+      }
+
+      .card::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+        background: linear-gradient(130deg, rgba(255, 255, 255, 0.46) 0%, rgba(255, 255, 255, 0) 35%);
+      }
+
+      .lead {
+        color: var(--muted);
+        line-height: 1.6;
+      }
+
+      .route-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        gap: 0.9rem;
+      }
+
+      .route-link {
+        display: block;
+        text-decoration: none;
+        color: var(--ink);
+        border: 1px solid var(--line);
+        background: rgba(255, 255, 255, 0.92);
+        border-radius: 14px;
+        padding: 0.85rem 0.95rem;
+        transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+      }
+
+      .route-link:hover {
+        transform: translateY(-3px);
+        border-color: color-mix(in srgb, var(--accent) 50%, var(--line));
+        box-shadow: 0 10px 26px rgba(47, 38, 18, 0.14);
+      }
+
+      .route-link strong {
+        display: block;
+        margin-bottom: 0.25rem;
+        font-size: 1.02rem;
+      }
+
+      .muted-link {
+        color: var(--accent-deep);
+      }
+
+      .hero-card {
+        padding: 1.8rem 1.9rem;
+        margin-bottom: 1rem;
+        border-color: color-mix(in srgb, var(--teal) 18%, var(--line));
+      }
+
+      .eyebrow {
+        margin: 0;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        color: var(--teal);
+        font-size: 0.8rem;
+        font-weight: 700;
+      }
+
+      .hero-title {
+        margin: 0.3rem 0 0.6rem;
+        font-size: clamp(2rem, 4vw, 3.2rem);
+        line-height: 1.02;
+        text-wrap: balance;
+      }
+
+      .hero-lead {
+        margin: 0;
+        max-width: 72ch;
+      }
+
+      .chip-row {
+        margin-top: 1rem;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.45rem;
+      }
+
+      .chip {
+        display: inline-block;
+        border: 1px solid color-mix(in srgb, var(--teal) 28%, var(--line));
+        border-radius: 999px;
+        padding: 0.18rem 0.68rem;
+        font-size: 0.8rem;
+        color: var(--teal);
+        background: rgba(31, 120, 106, 0.08);
+      }
+
+      .section-card {
+        margin-bottom: 1rem;
+      }
+
+      .section-title {
+        margin: 0 0 0.85rem;
+        font-size: 1.42rem;
+      }
+
+      .resource-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        gap: 0.8rem;
+      }
+
+      .resources-lead {
+        margin-top: 0.2rem;
+        margin-bottom: 0.8rem;
+      }
+
+      .bg-orb {
+        position: fixed;
+        z-index: 0;
+        border-radius: 50%;
+        filter: blur(30px);
+        opacity: 0.32;
+        pointer-events: none;
+      }
+
+      .orb-a {
+        width: 340px;
+        height: 340px;
+        background: #c38d5f;
+        top: -100px;
+        left: -95px;
+      }
+
+      .orb-b {
+        width: 360px;
+        height: 360px;
+        background: #79b9aa;
+        bottom: -120px;
+        right: -95px;
+      }
+
+      @keyframes fade-in {
+        from {
+          opacity: 0;
+          transform: translateY(8px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+
+      @media (max-width: 720px) {
+        .page-shell {
+          padding: 1.1rem 0.75rem 2rem;
+        }
+
+        .hero-card {
+          padding: 1.25rem;
+        }
+
+        .hero-title {
+          font-size: clamp(1.7rem, 8vw, 2.25rem);
+        }
+
+        .card {
+          border-radius: 16px;
+          padding: 1.05rem 1.05rem;
+        }
+      }
+    </html-style>
+  </head>
+  <body>
+    <div class="bg-orb orb-a"></div>
+    <div class="bg-orb orb-b"></div>
+    <main class="page-shell">
+      <${input.content}/>
+    </main>
+  </body>
+</html>

@@ -97,7 +97,12 @@ export default function markoRunRsbuild(
       // ── modifyRsbuildConfig ──────────────────────────────────────
       api.modifyRsbuildConfig((config) => {
         config.server ??= {};
-        config.server.port ??= Number(process.env.PORT) || 3000;
+        if (config.server.port == null && process.env.PORT != null) {
+          const parsedPort = Number(process.env.PORT);
+          if (Number.isFinite(parsedPort)) {
+            config.server.port = parsedPort;
+          }
+        }
 
         config.environments ??= {};
 

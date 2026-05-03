@@ -22,8 +22,15 @@ npm run preview
 
 ```
 src/routes/
-├── +page.marko          # Home page
-└── +handler.ts          # Route handler
+├── +page.marko
+├── about/+page.marko
+├── guides/getting-started/+page.marko
+├── guides/advanced/performance/+page.marko
+├── _marketing.contact/+page.marko
+├── blog/$slug/+handler.ts
+├── products/$category/$id/+handler.ts
+├── docs/$$rest/+handler.ts
+└── api/users/+handler.ts
 ```
 
 ## Key Differences from Vite
@@ -36,7 +43,12 @@ This example uses Rsbuild instead of Vite:
 
 ## Features Demonstrated
 
-- ✓ Basic routing
+- ✓ Multi-page static routes
+- ✓ Nested static routes
+- ✓ Dynamic segments (`$param`)
+- ✓ Catch-all segment (`$$rest`)
+- ✓ Pathless grouping (`_segment`)
+- ✓ API-style handler routes
 - ✓ Rsbuild configuration
 - ✓ Node.js adapter
 - ✓ Hot Module Replacement (HMR)

@@ -13,21 +13,41 @@ async function request(url, init) {
 }
 
 async function main() {
+  const basePort = Number(process.env.PORT || "3900");
   const proc = spawn("npm", ["run", "dev"], {
     cwd,
     stdio: "ignore",
     shell: true,
+    env: { ...process.env, PORT: String(basePort) },
   });
 
   try {
-    await wait(4500);
+    let port = basePort;
+    let getRes;
 
-    const getRes = await request("http://localhost:3000/");
-    if (getRes.status !== 200 || !getRes.text.includes("Welcome to @marko/run + Rsbuild")) {
+    for (let i = 0; i < 8; i++) {
+      port = basePort + i;
+      try {
+        getRes = await request(`http://localhost:${port}/`);
+        if (getRes.status === 200) {
+          break;
+        }
+      } catch {
+        await wait(600);
+      }
+    }
+
+    if (!getRes) {
+      throw new Error("GET / smoke check failed (server not reachable)");
+    }
+
+    if (getRes.status !== 200 || !getRes.text.includes("route atlas")) {
       throw new Error("GET / smoke check failed");
     }
 
-    const postRes = await request("http://localhost:3000/", { method: "POST" });
+    const postRes = await request(`http://localhost:${port}/`, {
+      method: "POST",
+    });
     if (postRes.status !== 201 || !postRes.text.includes("Created!")) {
       throw new Error("POST / smoke check failed");
     }

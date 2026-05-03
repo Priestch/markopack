@@ -72,9 +72,7 @@ export default function markoRunRsbuild(
   let typesFile: string | undefined;
   let tsConfigExists: boolean | undefined;
   let lastRouteHash = "";
-  let loadedRouteHash = "";
-  let routeArtifactsDirty = true;
-  const generatedFileCache = new Map<string, string>();
+  let routerReady = false;
 
   return {
     name: PLUGIN_NAME,
@@ -184,15 +182,8 @@ export default function markoRunRsbuild(
                   return next();
                 }
 
-                const shouldReloadBundle =
-                  routeArtifactsDirty ||
-                  loadedRouteHash !== lastRouteHash ||
-                  !globalThis.__marko_run__?.fetch;
-
-                if (shouldReloadBundle) {
-                  await server.environments.node.loadBundle("index");
-                  loadedRouteHash = lastRouteHash;
-                  routeArtifactsDirty = false;
+                if (!routerReady || !globalThis.__marko_run__?.fetch) {
+                  return next();
                 }
 
                 if (!globalThis.__marko_run__?.fetch) {
@@ -302,6 +293,7 @@ export default function markoRunRsbuild(
         // Rebuild routes before each dev compilation if files changed
         const newHash = hashRoutesDir();
         if (newHash !== lastRouteHash) {
+          routerReady = false;
           await rebuildRoutes();
         }
       });
@@ -330,7 +322,8 @@ export default function markoRunRsbuild(
 
       // ── onAfterDevCompile ────────────────────────────────────────
       api.onAfterDevCompile(async ({ isFirstCompile }) => {
-        routeArtifactsDirty = true;
+        await api.context.devServer?.environments?.node?.loadBundle("index");
+        routerReady = Boolean(globalThis.__marko_run__?.fetch);
         if (isFirstCompile && routes) {
           await writeTypesFile();
           if (opts.debug) {
@@ -378,13 +371,13 @@ export default function markoRunRsbuild(
           for (const route of routes.list) {
             const fileName = getRouteVirtualFileName(route);
             const filePath = path.join(entryFilesDir, fileName);
-            writeGeneratedFile(filePath, renderRouteEntry(route, entryFilesDir));
+            fs.writeFileSync(filePath, renderRouteEntry(route, entryFilesDir));
           }
 
           // Write middleware file
           if (routes.middleware.length) {
             const filePath = path.join(entryFilesDir, MIDDLEWARE_FILENAME);
-            writeGeneratedFile(
+            fs.writeFileSync(
               filePath,
               renderMiddleware(routes.middleware, entryFilesDir),
             );
@@ -393,13 +386,12 @@ export default function markoRunRsbuild(
           // Write router file
           const runtimeInclude = await adapter?.runtimeInclude?.();
           const routerPath = path.join(entryFilesDir, ROUTER_FILENAME);
-          writeGeneratedFile(
+          fs.writeFileSync(
             routerPath,
             renderRouter(routes, entryFilesDir, runtimeInclude, { trailingSlashes }),
           );
 
           lastRouteHash = hashRoutesDir();
-          routeArtifactsDirty = true;
 
           if (opts.debug) {
             logger.info(
@@ -411,11 +403,10 @@ export default function markoRunRsbuild(
           // Write error into router so it surfaces in browser
           const routerPath = path.join(entryFilesDir, ROUTER_FILENAME);
           fs.mkdirSync(entryFilesDir, { recursive: true });
-          writeGeneratedFile(
+          fs.writeFileSync(
             routerPath,
             `throw new Error(${JSON.stringify(String(err))});`,
           );
-          routeArtifactsDirty = true;
         }
       }
 
@@ -428,32 +419,12 @@ export default function markoRunRsbuild(
           if (route.templateFilePath) {
             const dir = path.dirname(route.templateFilePath);
             fs.mkdirSync(dir, { recursive: true });
-            writeGeneratedFile(
+            fs.writeFileSync(
               route.templateFilePath,
               renderRouteTemplate(route, undefined),
             );
           }
         }
-      }
-
-      function writeGeneratedFile(filepath: string, content: string) {
-        const cached = generatedFileCache.get(filepath);
-        if (cached === content) {
-          return;
-        }
-        if (fs.existsSync(filepath)) {
-          try {
-            const existing = fs.readFileSync(filepath, "utf-8");
-            if (existing === content) {
-              generatedFileCache.set(filepath, content);
-              return;
-            }
-          } catch {
-            // ignore fs read errors and overwrite below
-          }
-        }
-        fs.writeFileSync(filepath, content);
-        generatedFileCache.set(filepath, content);
       }
 
       async function writeTypesFile() {

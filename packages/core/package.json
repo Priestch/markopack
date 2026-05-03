@@ -1,0 +1,76 @@
+{
+  "name": "@rs-marko-run/core",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Shared core utilities for rs-marko-run adapters",
+  "sideEffects": false,
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/marko-js/run.git"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./adapter/middleware": {
+      "types": "./dist/adapter/middleware.d.ts",
+      "import": "./dist/adapter/middleware.js"
+    },
+    "./vite/constants": {
+      "types": "./dist/vite/constants.d.ts",
+      "import": "./dist/vite/constants.js"
+    },
+    "./vite/types": {
+      "types": "./dist/vite/types.d.ts",
+      "import": "./dist/vite/types.js"
+    },
+    "./vite/codegen": {
+      "types": "./dist/vite/codegen/index.d.ts",
+      "import": "./dist/vite/codegen/index.js"
+    },
+    "./vite/routes/builder": {
+      "types": "./dist/vite/routes/builder.d.ts",
+      "import": "./dist/vite/routes/builder.js"
+    },
+    "./vite/routes/walk": {
+      "types": "./dist/vite/routes/walk.d.ts",
+      "import": "./dist/vite/routes/walk.js"
+    },
+    "./vite/utils/fs": {
+      "types": "./dist/vite/utils/fs.d.ts",
+      "import": "./dist/vite/utils/fs.js"
+    },
+    "./vite/utils/route": {
+      "types": "./dist/vite/utils/route.d.ts",
+      "import": "./dist/vite/utils/route.js"
+    },
+    "./vite/utils/server": {
+      "types": "./dist/vite/utils/server.d.ts",
+      "import": "./dist/vite/utils/server.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.7"
+  },
+  "devDependencies": {
+    "@marko/run": "^0.9.6",
+    "@marko/vite": "^5.4.2",
+    "@types/node": "^24.0.13",
+    "vite": "^7.0.0"
+  },
+  "peerDependencies": {
+    "@marko/run": "^0.9.0",
+    "@marko/vite": "^5.4.2",
+    "vite": "^7.0.0"
+  }
+}

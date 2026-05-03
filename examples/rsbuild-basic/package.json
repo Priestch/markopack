@@ -1,0 +1,19 @@
+{
+  "name": "@rs-marko-run/example-rsbuild-basic",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "npx @rsbuild/core dev",
+    "build": "npx @rsbuild/core build",
+    "preview": "npx @rsbuild/core preview"
+  },
+  "dependencies": {
+    "marko": "^5.38.2"
+  },
+  "devDependencies": {
+    "@rs-marko-run/rsbuild": "file:../../packages/rsbuild",
+    "@rsbuild/core": "^2.0.2",
+    "rsbuild-plugin-marko": "file:../../../rsbuild-plugin-marko"
+  }
+}

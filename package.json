@@ -1,0 +1,19 @@
+{
+  "name": "rs-marko-run-workspace",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "license": "MIT",
+  "workspaces": [
+    "packages/*",
+    "examples/*"
+  ],
+  "scripts": {
+    "build": "npm run -ws build --if-present",
+    "dev:example": "npm run build -w @rs-marko-run/core && npm run build -w @rs-marko-run/rsbuild && npm run dev -w @rs-marko-run/example-rsbuild-basic",
+    "verify:example": "npm run build -w @rs-marko-run/core && npm run build -w @rs-marko-run/rsbuild && npm run build -w @rs-marko-run/example-rsbuild-basic && node scripts/smoke-example.mjs"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3"
+  }
+}

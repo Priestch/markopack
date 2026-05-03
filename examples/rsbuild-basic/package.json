@@ -4,9 +4,9 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "PORT=${PORT:-3900} npx @rsbuild/core dev",
-    "build": "npx @rsbuild/core build",
-    "preview": "npx @rsbuild/core preview"
+    "dev": "PORT=${PORT:-3900} rsbuild dev",
+    "build": "rsbuild build",
+    "preview": "rsbuild preview"
   },
   "dependencies": {
     "marko": "^5.38.2"

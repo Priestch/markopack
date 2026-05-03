@@ -6,7 +6,21 @@ function wait(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-async function request(url, init) {
+async function stopProcess(proc) {
+  if (proc.exitCode != null) return;
+  proc.kill("SIGTERM");
+  await Promise.race([new Promise((resolve) => proc.once("exit", resolve)), wait(1200)]);
+  if (proc.exitCode == null) {
+    proc.kill("SIGKILL");
+    await Promise.race([new Promise((resolve) => proc.once("exit", resolve)), wait(1200)]);
+  }
+}
+
+function request(url, init) {
+  return fetch(url, init);
+}
+
+async function requestWithBody(url, init) {
   const res = await fetch(url, init);
   const text = await res.text();
   return { status: res.status, text };
@@ -25,10 +39,12 @@ async function main() {
     let port = basePort;
     let getRes;
 
-    for (let i = 0; i < 8; i++) {
+    for (let i = 0; i < 24; i++) {
       port = basePort + i;
       try {
-        getRes = await request(`http://localhost:${port}/`);
+        const res = await request(`http://127.0.0.1:${port}/`);
+        const text = await res.text();
+        getRes = { status: res.status, text };
         if (getRes.status === 200) {
           break;
         }
@@ -45,7 +61,7 @@ async function main() {
       throw new Error("GET / smoke check failed");
     }
 
-    const postRes = await request(`http://localhost:${port}/`, {
+    const postRes = await requestWithBody(`http://127.0.0.1:${port}/`, {
       method: "POST",
     });
     if (postRes.status !== 201 || !postRes.text.includes("Created!")) {
@@ -54,7 +70,7 @@ async function main() {
 
     console.log("Smoke test passed.");
   } finally {
-    proc.kill();
+    await stopProcess(proc);
   }
 }
 

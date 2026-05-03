@@ -72,6 +72,9 @@ export default function markoRunRsbuild(
   let typesFile: string | undefined;
   let tsConfigExists: boolean | undefined;
   let lastRouteHash = "";
+  let loadedRouteHash = "";
+  let routeArtifactsDirty = true;
+  const generatedFileCache = new Map<string, string>();
 
   return {
     name: PLUGIN_NAME,
@@ -181,7 +184,16 @@ export default function markoRunRsbuild(
                   return next();
                 }
 
-                await server.environments.node.loadBundle("index");
+                const shouldReloadBundle =
+                  routeArtifactsDirty ||
+                  loadedRouteHash !== lastRouteHash ||
+                  !globalThis.__marko_run__?.fetch;
+
+                if (shouldReloadBundle) {
+                  await server.environments.node.loadBundle("index");
+                  loadedRouteHash = lastRouteHash;
+                  routeArtifactsDirty = false;
+                }
 
                 if (!globalThis.__marko_run__?.fetch) {
                   throw new Error(
@@ -318,6 +330,7 @@ export default function markoRunRsbuild(
 
       // ── onAfterDevCompile ────────────────────────────────────────
       api.onAfterDevCompile(async ({ isFirstCompile }) => {
+        routeArtifactsDirty = true;
         if (isFirstCompile && routes) {
           await writeTypesFile();
           if (opts.debug) {
@@ -365,13 +378,13 @@ export default function markoRunRsbuild(
           for (const route of routes.list) {
             const fileName = getRouteVirtualFileName(route);
             const filePath = path.join(entryFilesDir, fileName);
-            fs.writeFileSync(filePath, renderRouteEntry(route, entryFilesDir));
+            writeGeneratedFile(filePath, renderRouteEntry(route, entryFilesDir));
           }
 
           // Write middleware file
           if (routes.middleware.length) {
             const filePath = path.join(entryFilesDir, MIDDLEWARE_FILENAME);
-            fs.writeFileSync(
+            writeGeneratedFile(
               filePath,
               renderMiddleware(routes.middleware, entryFilesDir),
             );
@@ -380,12 +393,13 @@ export default function markoRunRsbuild(
           // Write router file
           const runtimeInclude = await adapter?.runtimeInclude?.();
           const routerPath = path.join(entryFilesDir, ROUTER_FILENAME);
-          fs.writeFileSync(
+          writeGeneratedFile(
             routerPath,
             renderRouter(routes, entryFilesDir, runtimeInclude, { trailingSlashes }),
           );
 
           lastRouteHash = hashRoutesDir();
+          routeArtifactsDirty = true;
 
           if (opts.debug) {
             logger.info(
@@ -397,10 +411,11 @@ export default function markoRunRsbuild(
           // Write error into router so it surfaces in browser
           const routerPath = path.join(entryFilesDir, ROUTER_FILENAME);
           fs.mkdirSync(entryFilesDir, { recursive: true });
-          fs.writeFileSync(
+          writeGeneratedFile(
             routerPath,
             `throw new Error(${JSON.stringify(String(err))});`,
           );
+          routeArtifactsDirty = true;
         }
       }
 
@@ -413,12 +428,32 @@ export default function markoRunRsbuild(
           if (route.templateFilePath) {
             const dir = path.dirname(route.templateFilePath);
             fs.mkdirSync(dir, { recursive: true });
-            fs.writeFileSync(
+            writeGeneratedFile(
               route.templateFilePath,
               renderRouteTemplate(route, undefined),
             );
           }
         }
+      }
+
+      function writeGeneratedFile(filepath: string, content: string) {
+        const cached = generatedFileCache.get(filepath);
+        if (cached === content) {
+          return;
+        }
+        if (fs.existsSync(filepath)) {
+          try {
+            const existing = fs.readFileSync(filepath, "utf-8");
+            if (existing === content) {
+              generatedFileCache.set(filepath, content);
+              return;
+            }
+          } catch {
+            // ignore fs read errors and overwrite below
+          }
+        }
+        fs.writeFileSync(filepath, content);
+        generatedFileCache.set(filepath, content);
       }
 
       async function writeTypesFile() {
@@ -442,13 +477,27 @@ export default function markoRunRsbuild(
       }
 
       function hashRoutesDir(): string {
-        // Quick hash of route file names to detect changes
+        // Hash route file names + mtimes to detect edits/renames.
         try {
           if (!fs.existsSync(resolvedRoutesDir)) return "";
           const files = fs.readdirSync(resolvedRoutesDir, {
             recursive: true,
           });
-          return files.join(",");
+          const signatures: string[] = [];
+          for (const file of files) {
+            const rel = String(file);
+            const abs = path.join(resolvedRoutesDir, rel);
+            try {
+              const stat = fs.statSync(abs);
+              if (stat.isFile()) {
+                signatures.push(`${rel}:${stat.mtimeMs}`);
+              }
+            } catch {
+              // file could be deleted during scan
+            }
+          }
+          signatures.sort();
+          return signatures.join(",");
         } catch {
           return "";
         }

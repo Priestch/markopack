@@ -1,4 +1,5 @@
 import { execSync, spawn } from "node:child_process";
+import fs from "node:fs";
 import path from "node:path";
 
 const root = path.resolve(new URL("..", import.meta.url).pathname);
@@ -8,7 +9,24 @@ const fixtures = {
   rsbuild: path.join(root, "bench/marko-run-rsbuild"),
 };
 
+function cleanFixture(cwd) {
+  const cleanupPaths = [
+    "dist",
+    ".marko-run",
+    "__marko-run__index.js",
+    "__marko-run__router.js",
+    "__marko-run__middleware.js",
+  ];
+  for (const rel of cleanupPaths) {
+    const abs = path.join(cwd, rel);
+    if (fs.existsSync(abs)) {
+      fs.rmSync(abs, { recursive: true, force: true });
+    }
+  }
+}
+
 function runTimedBuild(name, cwd) {
+  cleanFixture(cwd);
   const out = execSync('(/usr/bin/time -f "%e" npm run build) 2>&1', {
     cwd,
     shell: true,
@@ -25,38 +43,45 @@ function runTimedBuild(name, cwd) {
   return { name, buildSeconds: seconds };
 }
 
-async function measureFirstResponse(name, cwd, basePort) {
+async function measureDevReady(name, cwd, basePort) {
+  cleanFixture(cwd);
   const proc = spawn("npm", ["run", "dev"], {
     cwd,
     shell: true,
-    stdio: "ignore",
+    stdio: ["ignore", "pipe", "pipe"],
     env: { ...process.env, PORT: String(basePort) },
+  });
+
+  let logs = "";
+  proc.stdout.on("data", (chunk) => {
+    logs += String(chunk);
+  });
+  proc.stderr.on("data", (chunk) => {
+    logs += String(chunk);
   });
 
   const start = Date.now();
 
   try {
-    let ok = false;
-    for (let i = 0; i < 40; i++) {
-      for (let p = basePort; p < basePort + 12; p++) {
-        try {
-          const res = await fetch(`http://localhost:${p}/`);
-          if (res.status === 200) {
-            ok = true;
-            return {
-              name,
-              firstResponseMs: Date.now() - start,
-              port: p,
-            };
-          }
-        } catch {}
-      }
-      await new Promise((r) => setTimeout(r, 250));
-    }
+    for (let i = 0; i < 100; i++) {
+      const allPorts = [...logs.matchAll(/http:\/\/localhost:(\d+)/g)].map((m) => Number(m[1]));
+      const detected = allPorts.length ? allPorts[allPorts.length - 1] : undefined;
+      const ready =
+        logs.includes("ready   built in") ||
+        logs.includes("Server listening at") ||
+        logs.includes("Local:");
 
-    if (!ok) {
-      throw new Error(`${name}: dev server did not respond in time`);
+      if (ready && detected) {
+        return {
+          name,
+          devReadyMs: Date.now() - start,
+          port: detected,
+        };
+      }
+      await new Promise((r) => setTimeout(r, 200));
     }
+    const tail = logs.slice(-1200);
+    throw new Error(`${name}: dev server did not become ready in time\n${tail}`);
   } finally {
     proc.kill();
   }
@@ -66,16 +91,16 @@ async function main() {
   const buildVite = runTimedBuild("marko-run-vite", fixtures.vite);
   const buildRsbuild = runTimedBuild("marko-run-rsbuild", fixtures.rsbuild);
 
-  const devVite = await measureFirstResponse("marko-run-vite", fixtures.vite, 4100);
-  const devRsbuild = await measureFirstResponse(
+  const devVite = await measureDevReady("marko-run-vite", fixtures.vite, 4100);
+  const devRsbuild = await measureDevReady(
     "marko-run-rsbuild",
     fixtures.rsbuild,
     4200,
   );
 
   console.log("\nBenchmark results");
-  console.log(`- ${buildVite.name}: build=${buildVite.buildSeconds}s, first-response=${devVite.firstResponseMs}ms`);
-  console.log(`- ${buildRsbuild.name}: build=${buildRsbuild.buildSeconds}s, first-response=${devRsbuild.firstResponseMs}ms`);
+  console.log(`- ${buildVite.name}: build=${buildVite.buildSeconds}s, dev-ready=${devVite.devReadyMs}ms (port ${devVite.port})`);
+  console.log(`- ${buildRsbuild.name}: build=${buildRsbuild.buildSeconds}s, dev-ready=${devRsbuild.devReadyMs}ms (port ${devRsbuild.port})`);
 }
 
 main().catch((err) => {

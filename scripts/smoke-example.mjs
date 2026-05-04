@@ -1,4 +1,6 @@
 import { spawn } from "node:child_process";
+import fs from "node:fs";
+import path from "node:path";
 
 const cwd = new URL("../examples/rsbuild-basic/", import.meta.url);
 
@@ -28,6 +30,11 @@ async function requestWithBody(url, init) {
 
 async function main() {
   const basePort = Number(process.env.PORT || "3900");
+
+  // Clean dist so dev starts fresh
+  const distPath = path.join(cwd.pathname, "dist");
+  if (fs.existsSync(distPath)) fs.rmSync(distPath, { recursive: true, force: true });
+
   const proc = spawn("npm", ["run", "dev"], {
     cwd,
     stdio: "ignore",
@@ -40,7 +47,6 @@ async function main() {
     let getRes;
 
     for (let i = 0; i < 24; i++) {
-      port = basePort + i;
       try {
         const res = await request(`http://127.0.0.1:${port}/`);
         const text = await res.text();
@@ -49,8 +55,9 @@ async function main() {
           break;
         }
       } catch {
-        await wait(600);
+        // server not listening yet
       }
+      await wait(600);
     }
 
     if (!getRes) {

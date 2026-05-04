@@ -1,19 +1,16 @@
 {
-  "name": "bench-marko-run-rsbuild",
+  "name": "bench-marko-run-rspack",
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "PORT=${PORT:-4200} rsbuild dev",
-    "build": "rsbuild build",
-    "preview": "PORT=${PORT:-4200} rsbuild preview"
+    "dev": "node dev.mjs",
+    "build": "node build.mjs",
+    "preview": "node preview.mjs"
   },
   "dependencies": {
-    "@rsbuild/core": "2.0.3",
     "marko": "5.38.2"
   },
   "devDependencies": {
-    "@rs-marko-run/rsbuild": "file:../../packages/rsbuild",
-    "rsbuild-plugin-marko": "file:../../../rsbuild-plugin-marko",
-    "sass": "^1.93.2"
+    "@rs-marko-run/rspack": "file:../../packages/rspack"
   }
 }

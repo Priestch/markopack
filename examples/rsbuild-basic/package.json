@@ -1,20 +1,17 @@
 {
-  "name": "@rs-marko-run/example-rsbuild-basic",
+  "name": "@rs-marko-run/example-rspack-basic",
   "version": "0.0.1",
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "PORT=${PORT:-3900} rsbuild dev",
-    "build": "rsbuild build",
-    "preview": "rsbuild preview"
+    "dev": "node dev.mjs",
+    "build": "node build.mjs",
+    "preview": "node preview.mjs"
   },
   "dependencies": {
     "marko": "^5.38.2"
   },
   "devDependencies": {
-    "@rs-marko-run/rsbuild": "file:../../packages/rsbuild",
-    "@rsbuild/core": "^2.0.2",
-    "rsbuild-plugin-marko": "file:../../../rsbuild-plugin-marko",
-    "sass": "^1.99.0"
+    "@rs-marko-run/rspack": "file:../../packages/rspack"
   }
 }

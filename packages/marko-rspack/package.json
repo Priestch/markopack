@@ -1,0 +1,44 @@
+{
+  "name": "@rs-marko-run/marko-rspack",
+  "version": "0.1.0",
+  "description": "Marko compiler plugin for rspack (used by @rs-marko-run/rspack)",
+  "type": "module",
+  "sideEffects": false,
+  "license": "MIT",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs",
+      "default": "./dist/index.js"
+    },
+    "./marko-loader": {
+      "types": "./dist/marko-loader.d.ts",
+      "import": "./dist/marko-loader.js",
+      "default": "./dist/marko-loader.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsup"
+  },
+  "dependencies": {
+    "@marko/compiler": "^5.39.55",
+    "@marko/runtime-tags": "^6.0.145"
+  },
+  "peerDependencies": {
+    "@rspack/core": "^2.0.1",
+    "marko": "5 - 6"
+  },
+  "devDependencies": {
+    "@rspack/core": "^2.0.1",
+    "@types/node": "^24.0.13",
+    "tsup": "^8.3.0",
+    "typescript": "^5.9.3"
+  }
+}

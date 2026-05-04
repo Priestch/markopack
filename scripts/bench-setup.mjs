@@ -7,6 +7,20 @@ const fixtures = [
   path.join(root, "bench/marko-run-rsbuild"),
 ];
 
+console.log("Building local @rs-marko-run/marko-rspack package");
+execSync("npm run build", {
+  cwd: path.join(root, "packages/marko-rspack"),
+  stdio: "inherit",
+  shell: true,
+});
+
+console.log("Building local @rs-marko-run/rspack package");
+execSync("npm run build", {
+  cwd: path.join(root, "packages/rspack"),
+  stdio: "inherit",
+  shell: true,
+});
+
 for (const cwd of fixtures) {
   console.log(`Installing dependencies in ${cwd}`);
   execSync("npm install", { cwd, stdio: "inherit" });

@@ -10,12 +10,14 @@
   ],
   "scripts": {
     "build": "npm run -ws build --if-present",
-    "dev:example": "npm run build -w @rs-marko-run/core && npm run build -w @rs-marko-run/rsbuild && npm run dev -w @rs-marko-run/example-rsbuild-basic",
-    "verify:example": "npm run build -w @rs-marko-run/core && npm run build -w @rs-marko-run/rsbuild && npm run build -w @rs-marko-run/example-rsbuild-basic && node scripts/smoke-example.mjs",
+    "dev:example": "npm run build -w @rs-marko-run/core && npm run build -w @rs-marko-run/rspack && npm run dev -w @rs-marko-run/example-rspack-basic",
+    "verify:example": "npm run build -w @rs-marko-run/core && npm run build -w @rs-marko-run/rspack && node scripts/smoke-example.mjs",
     "sync:marko-run": "node scripts/sync-from-marko-run.mjs --ref main",
     "sync:marko-run:check": "node scripts/sync-from-marko-run.mjs --ref main --check",
-    "bench:setup": "node scripts/bench-setup.mjs",
-    "bench:perf": "node scripts/bench-perf.mjs"
+    "bench:prepare": "node scripts/bench-setup.mjs",
+    "bench:setup": "npm run bench:prepare",
+    "bench:perf": "node scripts/bench-perf.mjs",
+    "test:routes": "npm run build -w @rs-marko-run/core && npm run build -w @rs-marko-run/rspack && node scripts/test-routes.mjs"
   },
   "devDependencies": {
     "typescript": "^5.9.3"

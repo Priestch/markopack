@@ -6,7 +6,7 @@ const root = path.resolve(new URL("..", import.meta.url).pathname);
 
 const fixtures = {
   vite: path.join(root, "bench/marko-run-vite"),
-  rsbuild: path.join(root, "bench/marko-run-rsbuild"),
+  rspack: path.join(root, "bench/marko-run-rsbuild"),
 };
 
 function cleanFixture(cwd) {
@@ -25,9 +25,10 @@ function cleanFixture(cwd) {
   }
 }
 
-function runTimedBuild(name, cwd) {
+function runTimedBuild(name, cwd, buildCmd) {
   cleanFixture(cwd);
-  const out = execSync('(/usr/bin/time -f "%e" npm run build) 2>&1', {
+  const cmd = buildCmd || '(/usr/bin/time -f "%e" npm run build) 2>&1';
+  const out = execSync(cmd, {
     cwd,
     shell: true,
     stdio: ["ignore", "pipe", "inherit"],
@@ -114,20 +115,65 @@ async function measureDevReady(name, cwd, basePort) {
   }
 }
 
-async function main() {
-  const buildVite = runTimedBuild("marko-run-vite", fixtures.vite);
-  const buildRsbuild = runTimedBuild("marko-run-rsbuild", fixtures.rsbuild);
+async function measureDevReadyRspack(name, cwd, basePort) {
+  cleanFixture(cwd);
+  const script = path.join(root, "scripts/bench-rspack-dev.mjs");
+  const proc = spawn("node", [script, cwd, String(basePort)], {
+    cwd: root,
+    shell: true,
+    detached: true,
+    stdio: ["ignore", "pipe", "pipe"],
+    env: { ...process.env, PORT: String(basePort) },
+  });
 
+  let logs = "";
+  proc.stdout.on("data", (chunk) => {
+    logs += String(chunk);
+  });
+  proc.stderr.on("data", (chunk) => {
+    logs += String(chunk);
+  });
+
+  const start = Date.now();
+
+  try {
+    for (let i = 0; i < 100; i++) {
+      const allPorts = [...logs.matchAll(/http:\/\/localhost:(\d+)/g)].map((m) => Number(m[1]));
+      const detected = allPorts.length ? allPorts[allPorts.length - 1] : undefined;
+      const ready = logs.includes("Dev server ready");
+
+      if (ready && detected) {
+        return {
+          name,
+          devReadyMs: Date.now() - start,
+          port: detected,
+        };
+      }
+      await new Promise((r) => setTimeout(r, 200));
+    }
+    const tail = logs.slice(-1200);
+    throw new Error(`${name}: dev server did not become ready in time\n${tail}`);
+  } finally {
+    await stopDevProcess(proc);
+  }
+}
+
+async function main() {
+  // Build benchmarks
+  const buildVite = runTimedBuild("marko-run-vite", fixtures.vite);
+  const buildRspack = runTimedBuild("marko-run-rspack", fixtures.rspack);
+
+  // Dev benchmarks
   const devVite = await measureDevReady("marko-run-vite", fixtures.vite, 4100);
-  const devRsbuild = await measureDevReady(
-    "marko-run-rsbuild",
-    fixtures.rsbuild,
+  const devRspack = await measureDevReadyRspack(
+    "marko-run-rspack",
+    fixtures.rspack,
     4200,
   );
 
   console.log("\nBenchmark results");
-  console.log(`- ${buildVite.name}: build=${buildVite.buildSeconds}s, dev-ready=${devVite.devReadyMs}ms (port ${devVite.port})`);
-  console.log(`- ${buildRsbuild.name}: build=${buildRsbuild.buildSeconds}s, dev-ready=${devRsbuild.devReadyMs}ms (port ${devRsbuild.port})`);
+  console.log(`  ${buildVite.name}:  build=${buildVite.buildSeconds}s, dev-ready=${devVite.devReadyMs}ms (port ${devVite.port})`);
+  console.log(`  ${buildRspack.name}: build=${buildRspack.buildSeconds}s, dev-ready=${devRspack.devReadyMs}ms (port ${devRspack.port})`);
 }
 
 main().catch((err) => {

@@ -1,0 +1,62 @@
+import { build } from "esbuild";
+import { rm, mkdir, writeFile } from "fs/promises";
+import { resolve, dirname } from "path";
+import { fileURLToPath } from "url";
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const rootDir = resolve(__dirname, "..");
+const distDir = resolve(rootDir, "dist");
+const srcDir = resolve(rootDir, "src");
+
+// Clean dist
+try { await rm(distDir, { recursive: true }); } catch {}
+await mkdir(distDir, { recursive: true });
+
+const external = [
+  "@rspack/core",
+  "@rspack/core/*",
+  "@marko/run",
+  "@marko/run/*",
+  "@marko/vite",
+  "@marko/vite/*",
+  "@marko/compiler",
+  "rsbuild-plugin-marko",
+  "rsbuild-plugin-marko/*",
+  "@rs-marko-run/marko-rspack",
+  "@rs-marko-run/marko-rspack/*",
+  "sirv",
+  "css-loader",
+];
+
+await build({
+  entryPoints: [resolve(srcDir, "index.ts")],
+  bundle: true,
+  platform: "node",
+  target: "node18",
+  format: "esm",
+  outdir: distDir,
+  sourcemap: true,
+  external,
+  resolveExtensions: [".ts", ".js", ".mjs"],
+});
+
+// Generate declaration file
+const dts = `export interface RspackOptions {
+  root?: string;
+  entry?: string;
+  outputDir?: string;
+  routesDir?: string;
+  adapter?: any;
+  trailingSlashes?: 'Ignore' | 'RedirectWithout' | 'RedirectWith' | 'RewriteWithout' | 'RewriteWith';
+  emitRoutes?: (routes: any[]) => void | Promise<void>;
+  debug?: boolean;
+  mode?: 'development' | 'production';
+  port?: number;
+}
+
+export function build(options?: RspackOptions): Promise<void>;
+export function dev(options?: RspackOptions): Promise<{ close(): Promise<void> }>;
+`;
+
+await writeFile(resolve(distDir, "index.d.ts"), dts);
+console.log("Build completed successfully");

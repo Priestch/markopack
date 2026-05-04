@@ -1,0 +1,38 @@
+{
+  "name": "@rs-marko-run/rspack",
+  "version": "0.1.0",
+  "description": "Direct rspack integration for @marko/run — no rsbuild overhead",
+  "type": "module",
+  "sideEffects": false,
+  "license": "MIT",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "node scripts/build.mjs"
+  },
+  "dependencies": {
+    "@rs-marko-run/core": "file:../core",
+    "@rs-marko-run/marko-rspack": "file:../marko-rspack"
+  },
+  "peerDependencies": {
+    "@marko/run": "^0.9.0",
+    "@rspack/core": "^2.0.1",
+    "marko": "5 - 6"
+  },
+  "devDependencies": {
+    "@marko/run": "^0.9.6",
+    "@rspack/core": "^2.0.1",
+    "@types/node": "^24.0.13",
+    "esbuild": "^0.25.10",
+    "typescript": "^5.9.3"
+  }
+}

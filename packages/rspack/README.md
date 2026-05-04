@@ -1,6 +1,6 @@
 # @rs-marko-run/rspack
 
-Direct rspack integration for `@marko/run`. Builds Marko SSR apps using raw rspack — no rsbuild overhead.
+Direct rspack integration for `@marko/run`. Builds Marko SSR apps using raw rspack — zero framework overhead.
 
 ## Install
 

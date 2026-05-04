@@ -28,7 +28,7 @@ export interface MarkoPluginOptions {
   modules?: 'esm' | 'cjs';
   sourceMaps?: boolean;
   babelConfig?: Record<string, unknown>;
-  /** Direct entry points — bypasses rsbuild API when provided. */
+  /** Direct entry points — bypasses setup() API when provided. */
   entries?: { web?: Configuration['entry']; node?: Configuration['entry'] };
 }
 
@@ -41,7 +41,7 @@ export default class MarkoRspackPlugin {
     string,
     Record<string, Record<string, string[]>>
   > = {};
-  private rsbuildApi: any | null = null;
+  private _api: any | null = null;
   private entriesReady: ResolvablePromise<void>;
   private previousClientAssetsJson = '';
   private needsManifestSync = false;
@@ -103,7 +103,7 @@ export default class MarkoRspackPlugin {
   }
 
   setup(api: any) {
-    this.rsbuildApi = api;
+    this._api = api;
   }
 
   private getEntryPoints(compiler: CompilerType): Configuration['entry'] {
@@ -115,13 +115,13 @@ export default class MarkoRspackPlugin {
       return (isNode ? this.options.entries.node : this.options.entries.web) || { index: { import: [] } };
     }
 
-    if (!this.rsbuildApi) {
-      throw new Error('Rsbuild API not initialized');
+    if (!this._api) {
+      throw new Error('Plugin API not initialized — call setup() first or provide entries');
     }
 
-    const rsbuildConfig = this.rsbuildApi.getRsbuildConfig();
-    const environments = rsbuildConfig.environments || {};
-    const source = rsbuildConfig.source || {};
+    const config = this._api.getConfig();
+    const environments = config.environments || {};
+    const source = config.source || {};
 
     if (environments.node && environments.web) {
       if (compiler.options.target === 'node') {

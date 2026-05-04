@@ -1,6 +1,6 @@
 # Upstream Sync Guide
 
-This workspace vendors selected source files from `@marko/run` and official adapter packages to keep Rsbuild integration stable.
+This workspace vendors selected source files from `@marko/run` and official adapter packages to keep rspack integration stable.
 
 ## Source of Truth
 
@@ -37,7 +37,7 @@ MARKO_RUN_REPO=https://github.com/marko-js/run.git MARKO_RUN_REF=<sha> npm run s
 
 ## What Gets Synced
 
-- Core route/codegen/utils used by Rsbuild integration:
+- Core route/codegen/utils used by rspack integration:
   - `packages/run/src/vite/**` selected files
   - `packages/run/src/adapter/middleware.ts`
 - Official adapter sources (node/static/netlify), preferring monorepo adapter paths and falling back to `node_modules/@marko/run-adapter-*`.

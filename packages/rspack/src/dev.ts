@@ -15,7 +15,7 @@ export interface DevServer {
   close(): Promise<void>;
 }
 
-export function startDevServer(
+export async function startDevServer(
   compiler: MultiCompiler,
   opts: {
     root: string;
@@ -98,23 +98,15 @@ export function startDevServer(
 
   const networkAddr = getNetworkAddress();
 
-  server.on("error", (err: NodeJS.ErrnoException) => {
-    if (err.code === "EADDRINUSE") {
-      console.error(pc.red(`  Port ${port} is already in use. Kill the process or specify a different port.`));
-      process.exit(1);
-    } else {
-      throw err;
-    }
-  });
+  const actualPort = await findFreePort(port);
+  server.listen(actualPort);
 
-  server.listen(port, () => {
-    console.log();
-    console.log(`  ${pc.green("➜")}  ${pc.bold("Local")}:   http://localhost:${port}/`);
-    if (networkAddr) {
-      console.log(`  ${pc.green("➜")}  ${pc.bold("Network")}: http://${networkAddr}:${port}/`);
-    }
-    console.log();
-  });
+  console.log();
+  console.log(`  ${pc.green("➜")}  ${pc.bold("Local")}:   http://localhost:${actualPort}/`);
+  if (networkAddr) {
+    console.log(`  ${pc.green("➜")}  ${pc.bold("Network")}: http://${networkAddr}:${actualPort}/`);
+  }
+  console.log();
 
   compiler.watch({ aggregateTimeout: 100 }, (err: Error | null, stats: Stats | undefined) => {
     if (err) {
@@ -173,6 +165,26 @@ function reloadServerBundle(bundlePath: string) {
   } catch (err) {
     console.error(pc.red("Server bundle reload error:"), err);
   }
+}
+
+function findFreePort(startPort: number, maxTries = 10): Promise<number> {
+  return new Promise((resolve, reject) => {
+    const probe = http.createServer();
+    probe.on("error", (err: NodeJS.ErrnoException) => {
+      probe.close();
+      if (err.code === "EADDRINUSE" && maxTries > 0) {
+        findFreePort(startPort + 1, maxTries - 1).then(resolve, reject);
+      } else if (err.code === "EADDRINUSE") {
+        reject(new Error(`Ports ${startPort - maxTries}–${startPort} are all in use. Specify a different port.`));
+      } else {
+        reject(err);
+      }
+    });
+    probe.listen(startPort, () => {
+      const addr = probe.address();
+      probe.close(() => resolve(typeof addr === "object" && addr ? addr.port : startPort));
+    });
+  });
 }
 
 function getServerEntryPath(stats: Stats, serverDist: string): string | null {

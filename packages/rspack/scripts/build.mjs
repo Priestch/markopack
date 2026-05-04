@@ -20,13 +20,10 @@ const external = [
   "@marko/vite",
   "@marko/vite/*",
   "@marko/compiler",
-  "rsbuild-plugin-marko",
-  "rsbuild-plugin-marko/*",
   "@rs-marko-run/marko-rspack",
   "@rs-marko-run/marko-rspack/*",
   "sirv",
   "picocolors",
-  "css-loader",
 ];
 
 await build({
@@ -42,12 +39,14 @@ await build({
 });
 
 // Generate declaration file
-const dts = `export interface RspackOptions {
+const dts = `import type { Adapter, BuiltRoutes } from "@rs-marko-run/core/vite/types";
+
+export interface RspackOptions {
   root?: string;
   entry?: string;
   outputDir?: string;
   routesDir?: string;
-  adapter?: any;
+  adapter?: Adapter | null;
   trailingSlashes?: 'Ignore' | 'RedirectWithout' | 'RedirectWith' | 'RewriteWithout' | 'RewriteWith';
   emitRoutes?: (routes: any[]) => void | Promise<void>;
   debug?: boolean;

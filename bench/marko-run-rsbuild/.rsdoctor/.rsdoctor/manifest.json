@@ -1,0 +1,52 @@
+{
+  "client": {
+    "enableRoutes": [
+      "Overall",
+      "Compile.WebpackLoaders",
+      "Compile.WebpackPlugins",
+      "Bundle.ModuleGraph",
+      "Bundle.BundleSize"
+    ]
+  },
+  "data": {
+    "hash": "61cfb2bddd7f67492feb1e993a91358d",
+    "root": "/home/gaopeng/Enter/rs-marko-run",
+    "envinfo": [
+      "/home/gaopeng/Enter/rs-marko-run/bench/marko-run-rsbuild/.rsdoctor/.rsdoctor/envinfo/0"
+    ],
+    "pid": 1456334,
+    "errors": [
+      "/home/gaopeng/Enter/rs-marko-run/bench/marko-run-rsbuild/.rsdoctor/.rsdoctor/errors/0"
+    ],
+    "configs": [
+      "/home/gaopeng/Enter/rs-marko-run/bench/marko-run-rsbuild/.rsdoctor/.rsdoctor/configs/0"
+    ],
+    "summary": [
+      "/home/gaopeng/Enter/rs-marko-run/bench/marko-run-rsbuild/.rsdoctor/.rsdoctor/summary/0"
+    ],
+    "resolver": [
+      "/home/gaopeng/Enter/rs-marko-run/bench/marko-run-rsbuild/.rsdoctor/.rsdoctor/resolver/0"
+    ],
+    "loader": [
+      "/home/gaopeng/Enter/rs-marko-run/bench/marko-run-rsbuild/.rsdoctor/.rsdoctor/loader/0"
+    ],
+    "moduleGraph": [
+      "/home/gaopeng/Enter/rs-marko-run/bench/marko-run-rsbuild/.rsdoctor/.rsdoctor/moduleGraph/0"
+    ],
+    "chunkGraph": [
+      "/home/gaopeng/Enter/rs-marko-run/bench/marko-run-rsbuild/.rsdoctor/.rsdoctor/chunkGraph/0"
+    ],
+    "moduleCodeMap": [
+      "/home/gaopeng/Enter/rs-marko-run/bench/marko-run-rsbuild/.rsdoctor/.rsdoctor/moduleCodeMap/0"
+    ],
+    "plugin": [
+      "/home/gaopeng/Enter/rs-marko-run/bench/marko-run-rsbuild/.rsdoctor/.rsdoctor/plugin/0"
+    ],
+    "packageGraph": [
+      "/home/gaopeng/Enter/rs-marko-run/bench/marko-run-rsbuild/.rsdoctor/.rsdoctor/packageGraph/0"
+    ],
+    "otherReports": [
+      "/home/gaopeng/Enter/rs-marko-run/bench/marko-run-rsbuild/.rsdoctor/.rsdoctor/otherReports/0"
+    ]
+  }
+}

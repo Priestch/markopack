@@ -1,12 +1,13 @@
 import path from "node:path";
 import fs from "node:fs";
 import { rspack } from "@rspack/core";
-import type { MultiCompiler, Compiler } from "@rspack/core";
+import type { MultiCompiler, Compiler, Configuration } from "@rspack/core";
 import { renderRouteTypeInfo } from "@rs-marko-run/core/vite/codegen";
-import type { Adapter } from "@rs-marko-run/core/vite/types";
+import type { Adapter, BuiltRoutes } from "@rs-marko-run/core/vite/types";
 import { createConfigs } from "./config.js";
-import { buildAndWriteRoutes, type MarkoRunRspackOptions } from "./routes.js";
+import { buildAndWriteRoutes, type MarkoRunRspackOptions, type RouteBuildResult } from "./routes.js";
 import { startDevServer, type DevServer } from "./dev.js";
+import MarkoRspackPlugin from "@rs-marko-run/marko-rspack";
 
 export type { MarkoRunRspackOptions } from "./routes.js";
 
@@ -16,11 +17,7 @@ export interface RspackOptions extends MarkoRunRspackOptions {
   outputDir?: string;
   mode?: "development" | "production";
   port?: number;
-}
-
-export interface CreateConfigsResult {
-  web: import("@rspack/core").Configuration;
-  node: import("@rspack/core").Configuration;
+  adapter?: Adapter | null;
 }
 
 export async function build(options: RspackOptions = {}): Promise<void> {
@@ -32,7 +29,6 @@ export async function build(options: RspackOptions = {}): Promise<void> {
   const trailingSlashes = options.trailingSlashes || "RedirectWithout";
   const adapter = options.adapter ?? null;
 
-  // Adapter: configure + pluginOptions
   adapter?.configure?.({ root, isBuild: true });
   adapter?.pluginOptions?.(options as any);
 
@@ -44,7 +40,6 @@ export async function build(options: RspackOptions = {}): Promise<void> {
     options.debug,
   );
 
-  // Adapter: routesGenerated
   if (adapter?.routesGenerated && routeResult.routes) {
     await adapter.routesGenerated({
       routes: routeResult.routes,
@@ -53,7 +48,6 @@ export async function build(options: RspackOptions = {}): Promise<void> {
     });
   }
 
-  // Adapter: typeInfo
   await writeTypesFile(root, routeResult, adapter);
 
   const { web, node, markoPlugin } = createConfigs({
@@ -68,7 +62,7 @@ export async function build(options: RspackOptions = {}): Promise<void> {
   const nodeConfig = withMarkoPlugin(node, "server", markoPlugin);
 
   const compiler = rspack([webConfig, nodeConfig]) as MultiCompiler;
-  markoPlugin.applyDependencies(compiler as any, false);
+  markoPlugin.applyDependencies(compiler as Compiler, false);
 
   return new Promise<void>((resolve, reject) => {
     compiler.run((err, stats) => {
@@ -83,14 +77,11 @@ export async function build(options: RspackOptions = {}): Promise<void> {
           return;
         }
 
-        // Adapter: buildEnd
         if (adapter?.buildEnd && routeResult.routes) {
           const serverDist = path.join(outputDir, "server");
           const serverEntry = path.join(serverDist, "index.cjs");
           const builtEntries = fs.existsSync(serverEntry) ? [serverEntry] : [];
 
-          // If the adapter provides a default entry file, pass it as the source
-          // so the adapter can detect the default entry pattern (e.g. static adapter)
           const adapterEntry = await adapter.getEntryFile?.();
           const sourceEntries = adapterEntry ? [adapterEntry] : [routeResult.routerPath];
 
@@ -99,10 +90,9 @@ export async function build(options: RspackOptions = {}): Promise<void> {
             routes: routeResult.routes,
             builtEntries,
             sourceEntries,
-          }).then(() => resolve()).catch(reject);
-        } else {
-          resolve();
+          });
         }
+        resolve();
       });
     });
   });
@@ -118,7 +108,6 @@ export async function dev(options: RspackOptions = {}): Promise<DevServer> {
   const port = options.port || Number(process.env.PORT) || 3000;
   const adapter = options.adapter ?? null;
 
-  // Adapter: configure
   adapter?.configure?.({ root, isBuild: false });
   adapter?.pluginOptions?.(options as any);
 
@@ -130,7 +119,6 @@ export async function dev(options: RspackOptions = {}): Promise<DevServer> {
     options.debug,
   );
 
-  // Adapter: routesGenerated
   if (adapter?.routesGenerated && routeResult.routes) {
     await adapter.routesGenerated({
       routes: routeResult.routes,
@@ -151,7 +139,7 @@ export async function dev(options: RspackOptions = {}): Promise<DevServer> {
   const nodeConfig = withMarkoPlugin(node, "server", markoPlugin);
 
   const compiler = rspack([webConfig, nodeConfig]) as MultiCompiler;
-  markoPlugin.applyDependencies(compiler as any, true);
+  markoPlugin.applyDependencies(compiler as Compiler, true);
 
   return startDevServer(compiler, {
     root,
@@ -163,10 +151,10 @@ export async function dev(options: RspackOptions = {}): Promise<DevServer> {
 }
 
 function withMarkoPlugin(
-  config: import("@rspack/core").Configuration,
+  config: Configuration,
   side: "browser" | "server",
-  markoPlugin: any,
-): import("@rspack/core").Configuration {
+  markoPlugin: MarkoRspackPlugin,
+): Configuration {
   return {
     ...config,
     plugins: [
@@ -187,7 +175,7 @@ function withMarkoPlugin(
 
 async function writeTypesFile(
   root: string,
-  routeResult: { routes: any; typesDir: string },
+  routeResult: { routes: BuiltRoutes | null; typesDir: string },
   adapter: Adapter | null,
 ) {
   if (!routeResult.routes?.list?.length) return;

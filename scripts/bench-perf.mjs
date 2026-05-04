@@ -140,7 +140,7 @@ async function measureDevReadyRspack(name, cwd, basePort) {
     for (let i = 0; i < 100; i++) {
       const allPorts = [...logs.matchAll(/http:\/\/localhost:(\d+)/g)].map((m) => Number(m[1]));
       const detected = allPorts.length ? allPorts[allPorts.length - 1] : undefined;
-      const ready = logs.includes("Dev server ready");
+      const ready = logs.includes("Rspack compiled successfully");
 
       if (ready && detected) {
         return {

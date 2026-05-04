@@ -5,7 +5,7 @@ import http from "node:http";
 import { createRequire } from "node:module";
 import pc from "picocolors";
 import { rspack } from "@rspack/core";
-import type { Stats } from "@rspack/core";
+import type { Compiler, MultiCompiler, Stats } from "@rspack/core";
 import { createMiddleware } from "@rs-marko-run/core/adapter/middleware";
 import type { MarkoRunRspackOptions, RouteBuildResult } from "./routes.js";
 
@@ -16,7 +16,7 @@ export interface DevServer {
 }
 
 export function startDevServer(
-  compiler: any,
+  compiler: MultiCompiler,
   opts: {
     root: string;
     outputDir: string;
@@ -32,16 +32,16 @@ export function startDevServer(
   let routerReady = false;
   let serverBundlePath: string | null = null;
 
-  const nodeCompiler = compiler.compilers.find((c: any) => {
+  const nodeCompiler = compiler.compilers.find((c: Compiler) => {
     const t = c.options.target;
     return t === "node" || (Array.isArray(t) && t.includes("node"));
   });
-  const webCompiler = compiler.compilers.find((c: any) =>
+  const webCompiler = compiler.compilers.find((c: Compiler) =>
     Array.isArray(c.options.target) && c.options.target.includes("web"),
   );
 
   // Add ProgressPlugin to both compilers
-  for (const c of compiler.compilers) {
+  for (const c of compiler.compilers as Compiler[]) {
     new rspack.ProgressPlugin({
       prefix: c.options.name ?? "rspack",
     }).apply(c);
@@ -97,6 +97,16 @@ export function startDevServer(
   }
 
   const networkAddr = getNetworkAddress();
+
+  server.on("error", (err: NodeJS.ErrnoException) => {
+    if (err.code === "EADDRINUSE") {
+      console.error(pc.red(`  Port ${port} is already in use. Kill the process or specify a different port.`));
+      process.exit(1);
+    } else {
+      throw err;
+    }
+  });
+
   server.listen(port, () => {
     console.log();
     console.log(`  ${pc.green("➜")}  ${pc.bold("Local")}:   http://localhost:${port}/`);
@@ -106,7 +116,7 @@ export function startDevServer(
     console.log();
   });
 
-  compiler.watch({ aggregateTimeout: 100 }, (err: any, stats: any) => {
+  compiler.watch({ aggregateTimeout: 100 }, (err: Error | null, stats: Stats | undefined) => {
     if (err) {
       console.error(pc.red("Watch error:"), err);
       return;

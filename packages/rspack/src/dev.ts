@@ -1,8 +1,10 @@
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import http from "node:http";
 import { createRequire } from "node:module";
 import pc from "picocolors";
+import { rspack } from "@rspack/core";
 import type { Stats } from "@rspack/core";
 import { createMiddleware } from "@rs-marko-run/core/adapter/middleware";
 import type { MarkoRunRspackOptions, RouteBuildResult } from "./routes.js";
@@ -29,7 +31,6 @@ export function startDevServer(
 
   let routerReady = false;
   let serverBundlePath: string | null = null;
-  let compileStart = 0;
 
   const nodeCompiler = compiler.compilers.find((c: any) => {
     const t = c.options.target;
@@ -38,6 +39,13 @@ export function startDevServer(
   const webCompiler = compiler.compilers.find((c: any) =>
     Array.isArray(c.options.target) && c.options.target.includes("web"),
   );
+
+  // Add ProgressPlugin to both compilers
+  for (const c of compiler.compilers) {
+    new rspack.ProgressPlugin({
+      prefix: c.options.name ?? "rspack",
+    }).apply(c);
+  }
 
   if (nodeCompiler) {
     nodeCompiler.hooks.done.tap("marko-run:server-reload", (stats: Stats) => {
@@ -88,38 +96,36 @@ export function startDevServer(
     webCompiler.hooks.done.tap("marko-run:init-sirv", () => initSirv());
   }
 
+  const networkAddr = getNetworkAddress();
   server.listen(port, () => {
     console.log();
     console.log(`  ${pc.green("➜")}  ${pc.bold("Local")}:   http://localhost:${port}/`);
+    if (networkAddr) {
+      console.log(`  ${pc.green("➜")}  ${pc.bold("Network")}: http://${networkAddr}:${port}/`);
+    }
     console.log();
   });
 
-  let firstCompile = true;
-
   compiler.watch({ aggregateTimeout: 100 }, (err: any, stats: any) => {
     if (err) {
-      console.error(`  ${pc.red("✖")} ${pc.red("Watch error:")}`, err);
+      console.error(pc.red("Watch error:"), err);
       return;
     }
 
     if (stats) {
-      const elapsed = ((stats.endTime! - stats.startTime!) / 1000).toFixed(2);
-
       if (stats.hasErrors()) {
         const info = stats.toJson({ all: false, errors: true });
         for (const e of (info.errors ?? [])) {
-          console.error(`  ${pc.red("✖")} ${e.message}`);
+          console.error(pc.red(e.message));
         }
       } else {
-        for (const c of stats.stats ?? []) {
-          const name = c.compilation?.name ?? "unknown";
-          const cTime = ((c.endTime! - c.startTime!) / 1000).toFixed(2);
-          console.log(`  ${pc.green("✔")} ${pc.cyan(name)} compiled ${pc.gray(`in ${cTime}s`)}`);
-        }
-      }
-
-      if (firstCompile && !stats.hasErrors()) {
-        firstCompile = false;
+        // MultiStats: sum child timings
+        const children = stats.stats ?? [];
+        const elapsed = children.reduce(
+          (sum: number, c: any) => sum + (c.endTime ?? 0) - (c.startTime ?? 0),
+          0,
+        );
+        console.log(pc.green(`  Rspack compiled successfully in ${elapsed} ms`));
       }
     }
   });
@@ -134,6 +140,18 @@ export function startDevServer(
   };
 }
 
+function getNetworkAddress(): string | undefined {
+  const nets = os.networkInterfaces();
+  for (const addrs of Object.values(nets)) {
+    for (const addr of addrs ?? []) {
+      if (addr.family === "IPv4" && !addr.internal) {
+        return addr.address;
+      }
+    }
+  }
+  return undefined;
+}
+
 function reloadServerBundle(bundlePath: string) {
   for (const key of Object.keys(projectRequire.cache)) {
     if (key.startsWith(path.dirname(bundlePath))) {
@@ -143,7 +161,7 @@ function reloadServerBundle(bundlePath: string) {
   try {
     projectRequire(bundlePath);
   } catch (err) {
-    console.error(`  ${pc.red("✖")} Server bundle reload error:`, err);
+    console.error(pc.red("Server bundle reload error:"), err);
   }
 }
 

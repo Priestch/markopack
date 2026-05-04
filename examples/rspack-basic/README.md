@@ -1,6 +1,6 @@
-# @marko/run + Rsbuild Example
+# @marko/run + Rspack Example
 
-A basic example of using `@marko/run` with `@rs-marko-run/rsbuild`.
+A basic example of using `@marko/run` with `@rs-marko-run/rspack`.
 
 ## Getting Started
 
@@ -35,27 +35,26 @@ src/routes/
 
 ## Key Differences from Vite
 
-This example uses Rsbuild instead of Vite:
+This example uses rspack instead of Vite:
 
-- **Configuration**: `rsbuild.config.ts` instead of `vite.config.ts`
-- **Build Tool**: Rspack (Rsbuild) instead of Rollup (Vite)
-- **Plugin**: `@rs-marko-run/rsbuild` instead of `@marko/run/vite`
+- **Build Tool**: Rspack instead of Rollup (Vite)
+- **Integration**: `@rs-marko-run/rspack` instead of `@marko/run/vite`
+- **Programmatic API**: `build()` and `dev()` functions instead of vite config plugin
 
 ## Features Demonstrated
 
-- ✓ Multi-page static routes
-- ✓ Nested static routes
-- ✓ Dynamic segments (`$param`)
-- ✓ Catch-all segment (`$$rest`)
-- ✓ Pathless grouping (`_segment`)
-- ✓ API-style handler routes
-- ✓ Rsbuild configuration
-- ✓ Node.js adapter
-- ✓ Hot Module Replacement (HMR)
-- ✓ Production builds
+- Multi-page static routes
+- Nested static routes
+- Dynamic segments (`$param`)
+- Catch-all segment (`$$rest`)
+- Pathless grouping (`_segment`)
+- API-style handler routes
+- Node.js adapter
+- Hot reload
+- Production builds
 
 ## Learn More
 
 - [@marko/run documentation](https://github.com/marko-js/run)
-- [Rsbuild documentation](https://rsbuild.dev/)
+- [Rspack documentation](https://rspack.rs/)
 - [Marko documentation](https://markojs.com/)

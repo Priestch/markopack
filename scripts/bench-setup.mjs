@@ -4,7 +4,7 @@ import path from "node:path";
 const root = path.resolve(new URL("..", import.meta.url).pathname);
 const fixtures = [
   path.join(root, "bench/marko-run-vite"),
-  path.join(root, "bench/marko-run-rsbuild"),
+  path.join(root, "bench/marko-run-rspack"),
 ];
 
 console.log("Building local @rs-marko-run/marko-rspack package");

@@ -1,6 +1,6 @@
 import { build } from "@rs-marko-run/rspack";
 
-const root = "bench/marko-run-rsbuild";
+const root = "bench/marko-run-rspack";
 const start = performance.now();
 
 try {

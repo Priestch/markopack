@@ -49,7 +49,7 @@ async function stopProcess(proc) {
 }
 
 async function main() {
-  const cwd = path.join(root, "examples/rsbuild-basic");
+  const cwd = path.join(root, "examples/rspack-basic");
   const distPath = path.join(cwd, "dist");
   if (fs.existsSync(distPath)) fs.rmSync(distPath, { recursive: true, force: true });
 

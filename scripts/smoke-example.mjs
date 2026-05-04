@@ -2,7 +2,7 @@ import { spawn } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 
-const cwd = new URL("../examples/rsbuild-basic/", import.meta.url);
+const cwd = new URL("../examples/rspack-basic/", import.meta.url);
 
 function wait(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));

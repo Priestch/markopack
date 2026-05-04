@@ -12,4 +12,4 @@ Rsbuild integration packages for `@marko/run`.
 
 ## Example
 
-- `examples/rsbuild-basic`: runnable `@marko/run` + Rsbuild setup using the new package
+- `examples/rspack-basic`: runnable `@marko/run` + Rsbuild setup using the new package

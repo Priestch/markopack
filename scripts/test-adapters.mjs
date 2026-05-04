@@ -7,7 +7,7 @@ import { build } from "@rs-marko-run/rspack";
 import path from "node:path";
 import fs from "node:fs";
 
-const root = path.resolve("examples/rsbuild-basic");
+const root = path.resolve("examples/rspack-basic");
 const results = [];
 
 async function testAdapter(name, adapterFn) {

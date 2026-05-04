@@ -92,7 +92,7 @@ export function createConfigs(
 
   const webConfig: Configuration = {
     name: "web",
-    target: ["web", "es2017"],
+    target: ["web", "es2020"],
     mode,
     entry: webEntry,
     output: {
@@ -136,7 +136,7 @@ export function createConfigs(
                   },
                   externalHelpers: false,
                 },
-                env: { targets: "chrome 61" },
+                env: { targets: "defaults" },
               },
             },
           ],
@@ -147,7 +147,7 @@ export function createConfigs(
             rspack.CssExtractRspackPlugin.loader,
             {
               loader: "builtin:lightningcss-loader",
-              options: { targets: "chrome 61" },
+              options: { targets: "defaults" },
             },
           ],
           type: "javascript/auto",

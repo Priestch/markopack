@@ -6,7 +6,7 @@ const root = path.resolve(new URL("..", import.meta.url).pathname);
 
 const fixtures = {
   vite: path.join(root, "bench/marko-run-vite"),
-  rspack: path.join(root, "bench/marko-run-rsbuild"),
+  rspack: path.join(root, "bench/marko-run-rspack"),
 };
 
 function cleanFixture(cwd) {

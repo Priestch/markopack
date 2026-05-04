@@ -3,3 +3,6 @@ dist/
 .marko-run/
 examples/*/dist/
 examples/*/.marko-run/
+.rsdoctor/
+.rspack-profile-*
+.codex

@@ -1,7 +1,7 @@
 {
   "name": "@rs-marko-run/rspack",
   "version": "0.1.0",
-  "description": "Direct rspack integration for @marko/run — no rsbuild overhead",
+  "description": "Direct rspack integration for @marko/run — zero framework overhead",
   "type": "module",
   "sideEffects": false,
   "license": "MIT",

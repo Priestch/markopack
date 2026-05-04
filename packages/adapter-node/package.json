@@ -3,8 +3,8 @@
   "version": "0.1.0",
   "description": "Node adapter for rs-marko-run",
   "type": "module",
-  "main": "./src/index.ts",
-  "types": "./src/index.ts",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "sideEffects": false,
   "license": "MIT",
   "repository": {
@@ -12,8 +12,20 @@
     "url": "https://github.com/marko-js/run.git"
   },
   "exports": {
-    ".": "./src/index.ts",
-    "./middleware": "./src/middleware.ts"
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./middleware": {
+      "types": "./dist/middleware.d.ts",
+      "import": "./dist/middleware.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json"
   },
   "dependencies": {
     "@rs-marko-run/core": "file:../core"

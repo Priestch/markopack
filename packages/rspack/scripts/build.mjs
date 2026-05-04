@@ -25,6 +25,7 @@ const external = [
   "@rs-marko-run/marko-rspack",
   "@rs-marko-run/marko-rspack/*",
   "sirv",
+  "picocolors",
   "css-loader",
 ];
 

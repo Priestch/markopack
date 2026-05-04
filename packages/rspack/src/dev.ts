@@ -2,7 +2,8 @@ import fs from "node:fs";
 import path from "node:path";
 import http from "node:http";
 import { createRequire } from "node:module";
-import type { Compiler, MultiCompiler, Stats } from "@rspack/core";
+import pc from "picocolors";
+import type { Stats } from "@rspack/core";
 import { createMiddleware } from "@rs-marko-run/core/adapter/middleware";
 import type { MarkoRunRspackOptions, RouteBuildResult } from "./routes.js";
 
@@ -13,7 +14,7 @@ export interface DevServer {
 }
 
 export function startDevServer(
-  compiler: MultiCompiler,
+  compiler: any,
   opts: {
     root: string;
     outputDir: string;
@@ -22,27 +23,24 @@ export function startDevServer(
     trailingSlashes: NonNullable<MarkoRunRspackOptions["trailingSlashes"]>;
   },
 ): DevServer {
-  const { root, outputDir, port, routeResult } = opts;
+  const { outputDir, port } = opts;
   const clientDist = path.join(outputDir, "client");
   const serverDist = path.join(outputDir, "server");
 
   let routerReady = false;
   let serverBundlePath: string | null = null;
+  let compileStart = 0;
 
-  // Find the node compiler for server-side reload
-  const nodeCompiler = compiler.compilers.find(
-    (c) => {
-      const t = c.options.target;
-      return t === "node" || (Array.isArray(t) && t.includes("node"));
-    },
-  );
-  const webCompiler = compiler.compilers.find(
-    (c) => Array.isArray(c.options.target) && c.options.target.includes("web"),
+  const nodeCompiler = compiler.compilers.find((c: any) => {
+    const t = c.options.target;
+    return t === "node" || (Array.isArray(t) && t.includes("node"));
+  });
+  const webCompiler = compiler.compilers.find((c: any) =>
+    Array.isArray(c.options.target) && c.options.target.includes("web"),
   );
 
-  // Server hot reload: on node compiler done, clear cache and reload
   if (nodeCompiler) {
-    nodeCompiler.hooks.done.tap("marko-run:server-reload", (stats) => {
+    nodeCompiler.hooks.done.tap("marko-run:server-reload", (stats: Stats) => {
       if (stats.hasErrors()) return;
       serverBundlePath = getServerEntryPath(stats, serverDist);
       if (serverBundlePath) {
@@ -52,22 +50,18 @@ export function startDevServer(
     });
   }
 
-  // Route middleware
   const middleware = createMiddleware((request, platform) =>
     (globalThis as any).__marko_run__.fetch(request, platform),
   );
 
-  // Static file serving for client assets
   let sirvFn: ((req: http.IncomingMessage, res: http.ServerResponse) => void) | null = null;
 
   const server = http.createServer((req, res) => {
-    // Serve static client assets
     if (sirvFn && req.url && /\.\w+$/.test(req.url)) {
       sirvFn(req, res);
       return;
     }
 
-    // SSR middleware
     if (routerReady && (globalThis as any).__marko_run__?.fetch) {
       middleware(req, res, (err?: any) => {
         if (err) {
@@ -84,7 +78,6 @@ export function startDevServer(
     }
   });
 
-  // Lazy-init sirv once client dist exists
   const initSirv = () => {
     if (!sirvFn && fs.existsSync(clientDist)) {
       sirvFn = projectRequire("sirv")(clientDist, { dev: true });
@@ -96,20 +89,38 @@ export function startDevServer(
   }
 
   server.listen(port, () => {
-    console.log(`[rspack] Dev server at http://localhost:${port}`);
+    console.log();
+    console.log(`  ${pc.green("➜")}  ${pc.bold("Local")}:   http://localhost:${port}/`);
+    console.log();
   });
 
   let firstCompile = true;
 
-  // Start watching
-  compiler.watch({ aggregateTimeout: 100 }, (err, stats) => {
+  compiler.watch({ aggregateTimeout: 100 }, (err: any, stats: any) => {
     if (err) {
-      console.error("[rspack] Watch error:", err);
+      console.error(`  ${pc.red("✖")} ${pc.red("Watch error:")}`, err);
       return;
     }
-    if (firstCompile && stats && !stats.hasErrors()) {
-      firstCompile = false;
-      console.log(`[rspack] Dev server ready at http://localhost:${port}`);
+
+    if (stats) {
+      const elapsed = ((stats.endTime! - stats.startTime!) / 1000).toFixed(2);
+
+      if (stats.hasErrors()) {
+        const info = stats.toJson({ all: false, errors: true });
+        for (const e of (info.errors ?? [])) {
+          console.error(`  ${pc.red("✖")} ${e.message}`);
+        }
+      } else {
+        for (const c of stats.stats ?? []) {
+          const name = c.compilation?.name ?? "unknown";
+          const cTime = ((c.endTime! - c.startTime!) / 1000).toFixed(2);
+          console.log(`  ${pc.green("✔")} ${pc.cyan(name)} compiled ${pc.gray(`in ${cTime}s`)}`);
+        }
+      }
+
+      if (firstCompile && !stats.hasErrors()) {
+        firstCompile = false;
+      }
     }
   });
 
@@ -124,7 +135,6 @@ export function startDevServer(
 }
 
 function reloadServerBundle(bundlePath: string) {
-  // Clear all server output files from require cache
   for (const key of Object.keys(projectRequire.cache)) {
     if (key.startsWith(path.dirname(bundlePath))) {
       delete projectRequire.cache[key];
@@ -133,12 +143,11 @@ function reloadServerBundle(bundlePath: string) {
   try {
     projectRequire(bundlePath);
   } catch (err) {
-    console.error("[rspack] Server bundle reload error:", err);
+    console.error(`  ${pc.red("✖")} Server bundle reload error:`, err);
   }
 }
 
 function getServerEntryPath(stats: Stats, serverDist: string): string | null {
-  // Fallback: the server entry is always index.cjs
   const fallback = path.join(serverDist, "index.cjs");
   if (fs.existsSync(fallback)) return fallback;
 

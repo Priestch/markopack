@@ -21,7 +21,8 @@
   },
   "dependencies": {
     "@rs-marko-run/core": "file:../core",
-    "@rs-marko-run/marko-rspack": "file:../marko-rspack"
+    "@rs-marko-run/marko-rspack": "file:../marko-rspack",
+    "picocolors": "^1.1.1"
   },
   "peerDependencies": {
     "@marko/run": "^0.9.0",

@@ -11,6 +11,6 @@
     "marko": "5.38.2"
   },
   "devDependencies": {
-    "@rs-marko-run/rspack": "file:../../packages/rspack"
+    "@markopack/rspack": "file:../../packages/rspack"
   }
 }

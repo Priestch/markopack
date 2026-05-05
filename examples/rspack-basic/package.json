@@ -1,5 +1,5 @@
 {
-  "name": "@rs-marko-run/example-rspack-basic",
+  "name": "@markopack/example-rspack-basic",
   "version": "0.0.1",
   "private": true,
   "type": "module",
@@ -12,6 +12,6 @@
     "marko": "^5.38.2"
   },
   "devDependencies": {
-    "@rs-marko-run/rspack": "file:../../packages/rspack"
+    "@markopack/rspack": "file:../../packages/rspack"
   }
 }

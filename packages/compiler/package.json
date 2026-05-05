@@ -1,7 +1,7 @@
 {
-  "name": "@rs-marko-run/marko-rspack",
+  "name": "@markopack/compiler",
   "version": "0.1.0",
-  "description": "Marko compiler plugin for rspack (used by @rs-marko-run/rspack)",
+  "description": "Marko compiler plugin for rspack (used by @markopack/rspack)",
   "type": "module",
   "sideEffects": false,
   "license": "MIT",

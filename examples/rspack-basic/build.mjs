@@ -1,4 +1,4 @@
-import { build } from "@rs-marko-run/rspack";
+import { build } from "@markopack/rspack";
 
 build({
   root: import.meta.dirname,

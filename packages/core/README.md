@@ -1,3 +1,3 @@
-# @rs-marko-run/core
+# @markopack/core
 
-Shared route-building, codegen, and middleware helpers reused by `@rs-marko-run/rspack` and adapter packages.
+Shared route-building, codegen, and middleware helpers reused by `@markopack/rspack` and adapter packages.

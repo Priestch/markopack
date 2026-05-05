@@ -1,3 +1,3 @@
-# @rs-marko-run/adapter-node
+# @markopack/adapter-node
 
-Node adapter package for `@marko/run`, reusing `@rs-marko-run/core` middleware.
+Node adapter package for `@marko/run`, reusing `@markopack/core` middleware.

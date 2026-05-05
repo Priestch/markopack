@@ -1,3 +1,3 @@
-# @rs-marko-run/adapter-static
+# @markopack/adapter-static
 
 Static output adapter for `@marko/run` projects.

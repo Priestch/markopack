@@ -1,7 +1,7 @@
 {
-  "name": "@rs-marko-run/adapter-static",
+  "name": "@markopack/adapter-static",
   "version": "0.1.0",
-  "description": "Static adapter for rs-marko-run",
+  "description": "Static adapter for markopack",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -24,7 +24,7 @@
     "build": "tsc -p tsconfig.json && cp src/default-entry.mjs dist/default-entry.mjs"
   },
   "dependencies": {
-    "@rs-marko-run/core": "file:../core",
+    "@markopack/core": "file:../core",
     "compression": "^1.8.0",
     "htmlparser2": "^10.0.0",
     "sirv": "^1.0.15",

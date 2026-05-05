@@ -1,7 +1,7 @@
 {
-  "name": "@rs-marko-run/adapter-node",
+  "name": "@markopack/adapter-node",
   "version": "0.1.0",
-  "description": "Node adapter for rs-marko-run",
+  "description": "Node adapter for markopack",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -28,7 +28,7 @@
     "build": "tsc -p tsconfig.json"
   },
   "dependencies": {
-    "@rs-marko-run/core": "file:../core"
+    "@markopack/core": "file:../core"
   },
   "peerDependencies": {
     "@marko/run": "^0.9.0",

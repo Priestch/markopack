@@ -2,12 +2,12 @@ import path from "node:path";
 import fs from "node:fs";
 import { rspack } from "@rspack/core";
 import type { MultiCompiler, Compiler, Configuration } from "@rspack/core";
-import { renderRouteTypeInfo } from "@rs-marko-run/core/vite/codegen";
-import type { Adapter, BuiltRoutes } from "@rs-marko-run/core/vite/types";
+import { renderRouteTypeInfo } from "@markopack/core/vite/codegen";
+import type { Adapter, BuiltRoutes } from "@markopack/core/vite/types";
 import { createConfigs } from "./config.js";
 import { buildAndWriteRoutes, type MarkoRunRspackOptions, type RouteBuildResult } from "./routes.js";
 import { startDevServer, type DevServer } from "./dev.js";
-import MarkoRspackPlugin from "@rs-marko-run/marko-rspack";
+import MarkoRspackPlugin from "@markopack/compiler";
 
 export type { MarkoRunRspackOptions } from "./routes.js";
 

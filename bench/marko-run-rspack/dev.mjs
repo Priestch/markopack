@@ -1,4 +1,4 @@
-import { dev } from "@rs-marko-run/rspack";
+import { dev } from "@markopack/rspack";
 
 const port = Number(process.env.PORT || 4200);
 

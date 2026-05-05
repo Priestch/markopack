@@ -6,7 +6,7 @@ import { createRequire } from "node:module";
 import pc from "picocolors";
 import { rspack } from "@rspack/core";
 import type { Compiler, MultiCompiler, Stats } from "@rspack/core";
-import { createMiddleware } from "@rs-marko-run/core/adapter/middleware";
+import { createMiddleware } from "@markopack/core/adapter/middleware";
 import type { MarkoRunRspackOptions, RouteBuildResult } from "./routes.js";
 
 const projectRequire = createRequire(import.meta.url);

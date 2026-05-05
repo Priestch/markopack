@@ -21,7 +21,7 @@ if (!fs.existsSync(serverEntry)) {
 // Execute the server bundle to set up globalThis.__marko_run__
 projectRequire(serverEntry);
 
-const { createMiddleware } = await import("@rs-marko-run/core/adapter/middleware");
+const { createMiddleware } = await import("@markopack/core/adapter/middleware");
 const middleware = createMiddleware((request, platform) =>
   globalThis.__marko_run__.fetch(request, platform),
 );

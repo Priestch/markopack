@@ -7,14 +7,14 @@ const fixtures = [
   path.join(root, "bench/marko-run-rspack"),
 ];
 
-console.log("Building local @rs-marko-run/marko-rspack package");
+console.log("Building local @markopack/compiler package");
 execSync("npm run build", {
   cwd: path.join(root, "packages/marko-rspack"),
   stdio: "inherit",
   shell: true,
 });
 
-console.log("Building local @rs-marko-run/rspack package");
+console.log("Building local @markopack/rspack package");
 execSync("npm run build", {
   cwd: path.join(root, "packages/rspack"),
   stdio: "inherit",

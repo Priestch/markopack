@@ -1,7 +1,7 @@
 {
-  "name": "@rs-marko-run/adapter-netlify",
+  "name": "@markopack/adapter-netlify",
   "version": "0.1.0",
-  "description": "Netlify adapter for rs-marko-run",
+  "description": "Netlify adapter for markopack",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",

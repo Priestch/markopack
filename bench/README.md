@@ -3,7 +3,7 @@
 This folder contains two isolated fixtures for apples-to-apples comparison:
 
 - `marko-run-vite`: official `@marko/run` (Vite path)
-- `marko-run-rspack`: `@rs-marko-run/rspack`
+- `marko-run-rspack`: `@markopack/rspack`
 
 Run from workspace root:
 

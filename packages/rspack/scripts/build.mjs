@@ -20,8 +20,8 @@ const external = [
   "@marko/vite",
   "@marko/vite/*",
   "@marko/compiler",
-  "@rs-marko-run/marko-rspack",
-  "@rs-marko-run/marko-rspack/*",
+  "@markopack/compiler",
+  "@markopack/compiler/*",
   "sirv",
   "picocolors",
 ];
@@ -39,7 +39,7 @@ await build({
 });
 
 // Generate declaration file
-const dts = `import type { Adapter, BuiltRoutes } from "@rs-marko-run/core/vite/types";
+const dts = `import type { Adapter, BuiltRoutes } from "@markopack/core/vite/types";
 
 export interface RspackOptions {
   root?: string;

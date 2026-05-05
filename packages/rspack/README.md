@@ -1,17 +1,17 @@
-# @rs-marko-run/rspack
+# @markopack/rspack
 
 Direct rspack integration for `@marko/run`. Builds Marko SSR apps using raw rspack — zero framework overhead.
 
 ## Install
 
 ```sh
-npm install @rs-marko-run/rspack @rspack/core marko @marko/run
+npm install @markopack/rspack @rspack/core marko @marko/run
 ```
 
 ## Usage
 
 ```js
-import { build, dev } from "@rs-marko-run/rspack";
+import { build, dev } from "@markopack/rspack";
 
 // Production build
 await build({ root: process.cwd() });
@@ -37,7 +37,7 @@ const server = await dev({ root: process.cwd(), port: 3000 });
 ## Adapters
 
 ```js
-import nodeAdapter from "@rs-marko-run/adapter-node";
+import nodeAdapter from "@markopack/adapter-node";
 
 await build({ root: ".", adapter: nodeAdapter() });
 ```

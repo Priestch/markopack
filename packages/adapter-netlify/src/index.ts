@@ -103,12 +103,12 @@ export default function netlifyAdapter(options: Options = {}): Adapter {
     typeInfo(writer) {
       if (options.edge) {
         writer(
-          `import type { NetlifyEdgePlatformInfo } from '@rs-marko-run/adapter-netlify';`,
+          `import type { NetlifyEdgePlatformInfo } from '@markopack/adapter-netlify';`,
         );
         return "NetlifyEdgePlatformInfo";
       }
       writer(
-        `import type { NetlifyFunctionsPlatformInfo } from '@rs-marko-run/adapter-netlify';`,
+        `import type { NetlifyFunctionsPlatformInfo } from '@markopack/adapter-netlify';`,
       );
       return "NetlifyFunctionsPlatformInfo";
     },

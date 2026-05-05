@@ -3,8 +3,8 @@ import fs from "node:fs";
 import { createRequire } from "node:module";
 import type { Configuration } from "@rspack/core";
 import { rspack } from "@rspack/core";
-import MarkoRspackPlugin from "@rs-marko-run/marko-rspack";
-import type { MarkoPluginOptions } from "@rs-marko-run/marko-rspack";
+import MarkoRspackPlugin from "@markopack/compiler";
+import type { MarkoPluginOptions } from "@markopack/compiler";
 import type { RouteBuildResult } from "./routes.js";
 
 const projectRequire = createRequire(import.meta.url);
@@ -28,12 +28,12 @@ const markoRunRuntimeInternal = fs.existsSync(
   : path.join(markoRunRoot, "dist/runtime/internal.cjs");
 
 const markoLoaderPath = (() => {
-  // Resolve marko-loader from @rs-marko-run/marko-rspack package
+  // Resolve marko-loader from @markopack/compiler package
   const loaderEntry = projectRequire.resolve(
-    "@rs-marko-run/marko-rspack/marko-loader",
+    "@markopack/compiler/marko-loader",
   );
   if (fs.existsSync(loaderEntry)) return loaderEntry;
-  throw new Error("Cannot find marko-loader from @rs-marko-run/marko-rspack");
+  throw new Error("Cannot find marko-loader from @markopack/compiler");
 })();
 
 export function createConfigs(

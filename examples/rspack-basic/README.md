@@ -1,6 +1,6 @@
 # @marko/run + Rspack Example
 
-A basic example of using `@marko/run` with `@rs-marko-run/rspack`.
+A basic example of using `@marko/run` with `@markopack/rspack`.
 
 ## Getting Started
 
@@ -38,7 +38,7 @@ src/routes/
 This example uses rspack instead of Vite:
 
 - **Build Tool**: Rspack instead of Rollup (Vite)
-- **Integration**: `@rs-marko-run/rspack` instead of `@marko/run/vite`
+- **Integration**: `@markopack/rspack` instead of `@marko/run/vite`
 - **Programmatic API**: `build()` and `dev()` functions instead of vite config plugin
 
 ## Features Demonstrated

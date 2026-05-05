@@ -1,11 +1,11 @@
-# @rs-marko-run/marko-rspack
+# @markopack/compiler
 
-Marko compiler plugin and loader for rspack. Used internally by `@rs-marko-run/rspack`.
+Marko compiler plugin and loader for rspack. Used internally by `@markopack/rspack`.
 
 ## Install
 
 ```sh
-npm install @rs-marko-run/marko-rspack @rspack/core marko
+npm install @markopack/compiler @rspack/core marko
 ```
 
 ## What it provides
@@ -15,10 +15,10 @@ npm install @rs-marko-run/marko-rspack @rspack/core marko
 
 ## Usage
 
-This package is primarily used by `@rs-marko-run/rspack`. You typically don't need to use it directly.
+This package is primarily used by `@markopack/rspack`. You typically don't need to use it directly.
 
 ```js
-import MarkoRspackPlugin from "@rs-marko-run/marko-rspack";
+import MarkoRspackPlugin from "@markopack/compiler";
 
 const plugin = new MarkoRspackPlugin({
   entries: { web: webEntry, node: nodeEntry },

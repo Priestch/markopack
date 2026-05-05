@@ -47,7 +47,7 @@ function runGitRead(args, cwd) {
 }
 
 function ensureRepo(repoUrl) {
-  const root = path.join(os.tmpdir(), "rs-marko-run-sync");
+  const root = path.join(os.tmpdir(), "markopack-sync");
   const dir = path.join(root, "marko-run");
   const gitDir = path.join(dir, ".git");
 
@@ -225,28 +225,28 @@ function applyLocalTransforms(target, data) {
       return data
         .replace(
           'export type { NodePlatformInfo } from "@marko/run/adapter";',
-          'export type { NodePlatformInfo } from "@rs-marko-run/core/adapter/middleware";',
+          'export type { NodePlatformInfo } from "@markopack/core/adapter/middleware";',
         )
-        .replace(/@marko\\\/run-adapter-node/g, "@rs-marko-run\\/adapter-node")
-        .replace(/'@marko\/run-adapter-node'/g, "'@rs-marko-run/adapter-node'");
+        .replace(/@marko\\\/run-adapter-node/g, "@markopack\\/adapter-node")
+        .replace(/'@marko\/run-adapter-node'/g, "'@markopack/adapter-node'");
     }
     case "packages/adapter-node/src/middleware.ts": {
       return data.replace(
         'from "@marko/run/adapter/middleware";',
-        'from "@rs-marko-run/core/adapter/middleware";',
+        'from "@markopack/core/adapter/middleware";',
       );
     }
     case "packages/adapter-static/src/index.ts": {
       return data
         .replace(
           'import type {\n  Adapter,\n  AdapterConfig,\n  Options as MarkoRunOptions,\n  Route,\n} from "@marko/run/vite";\nimport { getAvailablePort, loadEnv, spawnServer } from "@marko/run/vite";',
-          'import type {\n  Adapter,\n  AdapterConfig,\n  Options as MarkoRunOptions,\n  Route,\n} from "@rs-marko-run/core/vite/types";\nimport {\n  getAvailablePort,\n  loadEnv,\n  spawnServer,\n} from "@rs-marko-run/core/vite/utils/server";',
+          'import type {\n  Adapter,\n  AdapterConfig,\n  Options as MarkoRunOptions,\n  Route,\n} from "@markopack/core/vite/types";\nimport {\n  getAvailablePort,\n  loadEnv,\n  spawnServer,\n} from "@markopack/core/vite/utils/server";',
         );
     }
     case "packages/adapter-netlify/src/index.ts": {
       return data
-        .replace(/'@marko\/run-adapter-netlify'/g, "'@rs-marko-run/adapter-netlify'")
-        .replace(/@marko\\\/run-adapter-netlify/g, "@rs-marko-run\\/adapter-netlify");
+        .replace(/'@marko\/run-adapter-netlify'/g, "'@markopack/adapter-netlify'")
+        .replace(/@marko\\\/run-adapter-netlify/g, "@markopack\\/adapter-netlify");
     }
     default:
       return data;

@@ -7,7 +7,7 @@ This workspace vendors selected source files from `@marko/run` and official adap
 - Always sync from the git repo (never from a local clone by default).
 - Default repo: `https://github.com/marko-js/run.git`
 - Default ref: `main`
-- Local mirror cache path: `${TMPDIR}/rs-marko-run-sync/marko-run`
+- Local mirror cache path: `${TMPDIR}/markopack-sync/marko-run`
 
 ## Commands
 

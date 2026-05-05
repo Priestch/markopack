@@ -3,7 +3,7 @@
  * Usage: node scripts/test-adapters.mjs
  */
 
-import { build } from "@rs-marko-run/rspack";
+import { build } from "@markopack/rspack";
 import path from "node:path";
 import fs from "node:fs";
 
@@ -82,7 +82,7 @@ await testAdapter("none", () => null);
 
 // Test 2: adapter-node
 try {
-  const { default: nodeAdapter } = await import("@rs-marko-run/adapter-node");
+  const { default: nodeAdapter } = await import("@markopack/adapter-node");
   await testAdapter("node", nodeAdapter);
 } catch (err) {
   console.log(`  adapter-node: SKIP - ${err.message}\n`);
@@ -91,7 +91,7 @@ try {
 
 // Test 3: adapter-static
 try {
-  const { default: staticAdapter } = await import("@rs-marko-run/adapter-static");
+  const { default: staticAdapter } = await import("@markopack/adapter-static");
   await testAdapter("static", () => staticAdapter());
 } catch (err) {
   console.log(`  adapter-static: SKIP - ${err.message}\n`);
@@ -100,7 +100,7 @@ try {
 
 // Test 4: adapter-netlify
 try {
-  const { default: netlifyAdapter } = await import("@rs-marko-run/adapter-netlify");
+  const { default: netlifyAdapter } = await import("@markopack/adapter-netlify");
   await testAdapter("netlify-functions", () => netlifyAdapter());
   await testAdapter("netlify-edge", () => netlifyAdapter({ edge: true }));
 } catch (err) {

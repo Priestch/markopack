@@ -5,12 +5,12 @@ import type {
   AdapterConfig,
   Options as MarkoRunOptions,
   Route,
-} from "@rs-marko-run/core/vite/types";
+} from "@markopack/core/vite/types";
 import {
   getAvailablePort,
   loadEnv,
   spawnServer,
-} from "@rs-marko-run/core/vite/utils/server";
+} from "@markopack/core/vite/utils/server";
 import compression from "compression";
 import fs from "fs/promises";
 import { createServer } from "http";

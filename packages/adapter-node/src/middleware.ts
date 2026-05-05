@@ -4,7 +4,7 @@ import {
   type NodeMiddleware,
   type NodeMiddlewareOptions,
   type NodePlatformInfo,
-} from "@rs-marko-run/core/adapter/middleware";
+} from "@markopack/core/adapter/middleware";
 import type { IncomingMessage } from "http";
 
 import ensureRuntime from "./ensure-runtime";

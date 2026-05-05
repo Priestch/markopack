@@ -1,4 +1,4 @@
-import { build } from "@rs-marko-run/rspack";
+import { build } from "@markopack/rspack";
 
 const root = "bench/marko-run-rspack";
 const start = performance.now();

@@ -9,7 +9,7 @@
     "examples/*"
   ],
   "scripts": {
-    "build": "npm run -ws build --if-present",
+    "build": "npm run build -w @markopack/core && npm run build -w @markopack/compiler && npm run -ws build --if-present",
     "dev:example": "npm run -s build -w @markopack/core && npm run -s build -w @markopack/rspack && npm run dev -w @markopack/example-rspack-basic",
     "verify:example": "npm run -s build -w @markopack/core && npm run -s build -w @markopack/rspack && node scripts/smoke-example.mjs",
     "sync:marko-run": "node scripts/sync-from-marko-run.mjs --ref main",

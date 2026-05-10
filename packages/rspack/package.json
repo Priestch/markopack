@@ -1,6 +1,6 @@
 {
   "name": "@markopack/rspack",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Direct rspack integration for @marko/run — zero framework overhead",
   "type": "module",
   "sideEffects": false,
@@ -9,7 +9,12 @@
     "type": "git",
     "url": "https://github.com/Priestch/markopack.git"
   },
-  "keywords": ["marko", "rspack", "ssr", "framework"],
+  "keywords": [
+    "marko",
+    "rspack",
+    "ssr",
+    "framework"
+  ],
   "engines": {
     "node": ">=20.19.0 || >=22.12.0"
   },
@@ -28,8 +33,8 @@
     "build": "node scripts/build.mjs"
   },
   "dependencies": {
-    "@markopack/core": "^0.1.1",
-    "@markopack/compiler": "^0.1.1",
+    "@markopack/core": "^0.1.2",
+    "@markopack/compiler": "^0.1.2",
     "picocolors": "^1.1.1"
   },
   "peerDependencies": {

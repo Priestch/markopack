@@ -1,6 +1,6 @@
 {
   "name": "@markopack/compiler",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Marko compiler plugin for rspack (used by @markopack/rspack)",
   "type": "module",
   "sideEffects": false,
@@ -9,7 +9,12 @@
     "type": "git",
     "url": "https://github.com/Priestch/markopack.git"
   },
-  "keywords": ["marko", "rspack", "compiler", "loader"],
+  "keywords": [
+    "marko",
+    "rspack",
+    "compiler",
+    "loader"
+  ],
   "engines": {
     "node": ">=20.19.0 || >=22.12.0"
   },

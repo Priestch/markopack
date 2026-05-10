@@ -1,6 +1,6 @@
 {
   "name": "@markopack/adapter-static",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Static adapter for markopack",
   "type": "module",
   "main": "./dist/index.js",
@@ -24,7 +24,7 @@
     "build": "tsc -p tsconfig.json && cp src/default-entry.mjs dist/default-entry.mjs"
   },
   "dependencies": {
-    "@markopack/core": "file:../core",
+    "@markopack/core": "^0.1.1",
     "compression": "^1.8.0",
     "htmlparser2": "^10.0.0",
     "sirv": "^1.0.15",

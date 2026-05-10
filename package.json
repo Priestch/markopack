@@ -17,9 +17,12 @@
     "bench:prepare": "node scripts/bench-setup.mjs",
     "bench:setup": "npm run bench:prepare",
     "bench:perf": "node scripts/bench-perf.mjs",
-    "test:routes": "npm run -s build -w @markopack/core && npm run -s build -w @markopack/rspack && node scripts/test-routes.mjs"
+    "test:routes": "npm run -s build -w @markopack/core && npm run -s build -w @markopack/rspack && node scripts/test-routes.mjs",
+    "version": "changeset version",
+    "release": "npm run build && changeset publish"
   },
   "devDependencies": {
+    "@changesets/cli": "^2.29.4",
     "typescript": "^5.9.3"
   }
 }

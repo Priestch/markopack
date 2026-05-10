@@ -7,7 +7,7 @@ import {
 } from "@markopack/core/adapter/middleware";
 import type { IncomingMessage } from "http";
 
-import ensureRuntime from "./ensure-runtime";
+import ensureRuntime from "./ensure-runtime.js";
 
 export { createMiddleware, type NodeMiddleware, type NodeMiddlewareOptions };
 

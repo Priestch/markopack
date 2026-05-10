@@ -21,7 +21,7 @@ import { Pool } from "undici";
 import { fileURLToPath, pathToFileURL } from "url";
 import zlib from "zlib";
 
-import createCrawler from "./crawler";
+import createCrawler from "./crawler.js";
 
 const __dirname = fileURLToPath(path.dirname(import.meta.url));
 const defaultEntry = path.join(__dirname, "default-entry");

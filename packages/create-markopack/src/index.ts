@@ -53,19 +53,21 @@ async function main() {
   const targetDir = resolve(result.name);
 
   const s = clack.spinner();
-  s.start("Scaffolding project");
+  s.start("Creating project files");
 
   await scaffold(targetDir, result);
 
-  s.message("Installing dependencies");
+  s.stop("Project files created");
+
+  clack.log.step("Installing dependencies...");
   try {
-    execSync("npm install", { cwd: targetDir, stdio: "pipe" });
+    execSync("npm install", { cwd: targetDir, stdio: "inherit" });
   } catch {
-    s.stop("Dependencies installed with warnings");
+    clack.log.warn("npm install finished with warnings.");
     clack.note("Run `npm install` manually in the project directory.", "Note");
   }
 
-  s.message("Initializing git");
+  s.start("Initializing git repository");
   try {
     execSync("git init", { cwd: targetDir, stdio: "pipe" });
     execSync("git add -A", { cwd: targetDir, stdio: "pipe" });
@@ -74,8 +76,7 @@ async function main() {
       stdio: "pipe",
     });
   } catch {}
-
-  s.stop("Project created");
+  s.stop("Git repository initialized");
 
   clack.note(
     [

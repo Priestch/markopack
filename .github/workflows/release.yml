@@ -24,8 +24,20 @@ jobs:
 
       - run: npm ci
 
+      - name: Detect publish auth mode
+        id: publish_auth
+        shell: bash
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          if [ -n "$NPM_TOKEN" ]; then
+            echo "has_npm_token=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_npm_token=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Create Release Pull Request or Publish (NPM token)
-        if: ${{ secrets.NPM_TOKEN != '' }}
+        if: ${{ steps.publish_auth.outputs.has_npm_token == 'true' }}
         uses: changesets/action@v1
         with:
           publish: npm run release
@@ -38,7 +50,7 @@ jobs:
           NPM_CONFIG_PROVENANCE: true
 
       - name: Create Release Pull Request or Publish (Trusted Publisher)
-        if: ${{ secrets.NPM_TOKEN == '' }}
+        if: ${{ steps.publish_auth.outputs.has_npm_token == 'false' }}
         uses: changesets/action@v1
         with:
           publish: npm run release

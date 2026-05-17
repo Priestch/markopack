@@ -1,5 +1,11 @@
 # @markopack/compiler
 
+## 0.1.4
+
+### Patch Changes
+
+- c1cd7bd: Fix layout template escape and update Marko to 6.x
+
 ## 0.1.3
 
 ### Patch Changes

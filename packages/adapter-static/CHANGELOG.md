@@ -1,5 +1,13 @@
 # @markopack/adapter-static
 
+## 0.1.4
+
+### Patch Changes
+
+- c1cd7bd: Fix layout template escape and update Marko to 6.x
+- Updated dependencies [c1cd7bd]
+  - @markopack/core@0.1.4
+
 ## 0.1.3
 
 ### Patch Changes

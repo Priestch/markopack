@@ -24,7 +24,7 @@ jobs:
 
       - run: npm ci
 
-      - run: sed -i '/_authToken/d' "$HOME/.npmrc"
+      - run: sed -i '/_authToken/d' "${NPM_CONFIG_USERCONFIG}"
 
       - name: Create Release Pull Request or Publish
         uses: changesets/action@v1

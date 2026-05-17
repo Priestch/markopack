@@ -59,13 +59,14 @@ async function main() {
 
   s.stop("Project files created");
 
-  clack.log.step("Installing dependencies...");
+  s.start("Installing dependencies (this may take a moment)");
   try {
-    execSync("npm install", { cwd: targetDir, stdio: "inherit" });
+    execSync("npm install", { cwd: targetDir, stdio: "pipe" });
   } catch {
-    clack.log.warn("npm install finished with warnings.");
+    s.stop("npm install finished with warnings");
     clack.note("Run `npm install` manually in the project directory.", "Note");
   }
+  s.stop("Dependencies installed");
 
   s.start("Initializing git repository");
   try {

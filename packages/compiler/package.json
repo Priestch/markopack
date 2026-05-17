@@ -1,6 +1,6 @@
 {
   "name": "@markopack/compiler",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Marko compiler plugin for rspack (used by @markopack/rspack)",
   "type": "module",
   "sideEffects": false,

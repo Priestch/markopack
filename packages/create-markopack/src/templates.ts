@@ -203,7 +203,7 @@ export function layoutMarko(): string {
 </head>
 <body>
   <main>
-    <${input.content}/>
+    <\${input.content}/>
   </main>
 </body>
 </html>

@@ -10,7 +10,7 @@ const ext = (opts: TemplateOptions) => (opts.typescript ? ".ts" : ".js");
 
 export function packageJson(opts: TemplateOptions): string {
   const deps: Record<string, string> = {
-    marko: "^5.38.2",
+    marko: "^6.0.0",
   };
   const devDeps: Record<string, string> = {
     "@markopack/rspack": "^0.1.0",

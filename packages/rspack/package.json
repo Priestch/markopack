@@ -1,6 +1,6 @@
 {
   "name": "@markopack/rspack",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "Direct rspack integration for @marko/run — zero framework overhead",
   "type": "module",
   "sideEffects": false,
@@ -33,8 +33,8 @@
     "build": "node scripts/build.mjs"
   },
   "dependencies": {
-    "@markopack/core": "^0.1.4",
-    "@markopack/compiler": "^0.1.4",
+    "@markopack/core": "^0.1.5",
+    "@markopack/compiler": "^0.1.5",
     "picocolors": "^1.1.1",
     "sirv": "^3.0.1"
   },

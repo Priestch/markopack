@@ -149,8 +149,8 @@ export default function staticAdapter(options: Options = {}): Adapter {
 
       if (sourceEntries[0] === defaultEntry) {
         envFile && (await loadEnv(envFile));
-        const fetch: Fetch = (await import(pathToFileURL(builtEntries[0]).href))
-          .fetch;
+        const mod = await import(pathToFileURL(builtEntries[0]).href);
+        const fetch: Fetch = mod.fetch || mod.default?.fetch;
         const crawler = createCrawler(
           async (request) => {
             const response = await fetch(request, {});

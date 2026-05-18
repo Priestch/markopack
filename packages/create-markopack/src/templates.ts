@@ -11,6 +11,7 @@ const ext = (opts: TemplateOptions) => (opts.typescript ? ".ts" : ".js");
 export function packageJson(opts: TemplateOptions): string {
   const deps: Record<string, string> = {
     marko: "^6.0.0",
+    "@marko/runtime-tags": "^6.0.0",
   };
   const devDeps: Record<string, string> = {
     "@markopack/rspack": "^0.1.0",
@@ -128,14 +129,14 @@ import path from "node:path";
 
 const root = import.meta.dirname;
 const port = Number(process.env.PORT || 3000);
-const publicDir = path.join(root, "dist/client");
+const publicDir = path.join(root, "dist/server/public");
 
 if (!fs.existsSync(publicDir)) {
   console.error("No build found. Run \`npm run build\` first.");
   process.exit(1);
 }
 
-const mimeTypes: Record<string, string> = {
+const mimeTypes = {
   ".html": "text/html",
   ".js": "application/javascript",
   ".css": "text/css",
@@ -146,11 +147,19 @@ const mimeTypes: Record<string, string> = {
   ".ico": "image/x-icon",
 };
 
+function resolveFile(urlPath) {
+  if (urlPath === "/") return path.join(publicDir, "index.html");
+  const base = path.join(publicDir, urlPath);
+  if (fs.existsSync(base) && !fs.statSync(base).isDirectory()) return base;
+  const withExt = base + ".html";
+  if (fs.existsSync(withExt)) return withExt;
+  const asIndex = path.join(base, "index.html");
+  if (fs.existsSync(asIndex)) return asIndex;
+  return null;
+}
+
 const server = http.createServer((req, res) => {
-  let filePath = path.join(publicDir, req.url === "/" ? "index.html" : req.url!);
-  if (!fs.existsSync(filePath) || fs.statSync(filePath).isDirectory()) {
-    filePath = path.join(publicDir, "index.html");
-  }
+  const filePath = resolveFile(req.url) || path.join(publicDir, "404.html");
   const ext = path.extname(filePath);
   res.setHeader("Content-Type", mimeTypes[ext] || "application/octet-stream");
   fs.createReadStream(filePath).pipe(res);

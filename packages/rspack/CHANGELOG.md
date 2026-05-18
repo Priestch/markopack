@@ -1,5 +1,13 @@
 # @markopack/rspack
 
+## 0.1.5
+
+### Patch Changes
+
+- bd99702: Add missing dependencies: `sirv` in `@markopack/rspack` (used by dev server) and `@marko/runtime-tags` in create-markopack templates (required by Marko 6 compiled output).
+  - @markopack/core@0.1.5
+  - @markopack/compiler@0.1.5
+
 ## 0.1.4
 
 ### Patch Changes

@@ -58,32 +58,32 @@ export default class MarkoRspackPlugin {
 
   browserApply(compiler: CompilerType) {
     this.browserCompilers.push(compiler);
-    this.applyBrowser(compiler);
     this.setupRules(compiler);
-    compiler.options.entry = this.getEntryPoints(compiler) as NonNullable<
-      CompilerType['options']['entry']
-    >;
+    // applyBrowser installs an async entry that merges the static entry with
+    // the page entries discovered on the server compiler — it must run last
+    // so nothing overwrites it.
+    this.applyBrowser(compiler);
   }
 
   serverApply(compiler: CompilerType) {
     this.serverCompiler = compiler;
-    this.applyServer(compiler);
     this.setupRules(compiler);
+    this.applyServer(compiler);
     compiler.options.entry = this.getEntryPoints(compiler) as NonNullable<
       CompilerType['options']['entry']
     >;
   }
 
   applyDependencies(multiCompiler: CompilerType, isWatch: boolean) {
-    if (!this.needsManifestSync) {
-      return;
-    }
-
     if (isWatch) {
       this.entriesReady = this.createDeferredPromise<void>();
       return;
     }
 
+    // Sequencing matters even before any page entries are discovered: the
+    // server compiler populates the browser's dynamic entries during its
+    // build, so the browser compiler must not start until the server one
+    // has finished.
     if (
       this.serverCompiler &&
       this.browserCompilers.length &&
@@ -100,6 +100,19 @@ export default class MarkoRspackPlugin {
 
   get entriesReadyPromise() {
     return this.entriesReady;
+  }
+
+  /** Page entry modules discovered on the server compiler (id → resource with ?browser-entry). */
+  get discoveredClientEntries(): Record<string, string> {
+    return this.clientEntries;
+  }
+
+  /** Browser compilation output files per entry (compiler name → entry id → files by extension). */
+  get collectedClientAssets(): Record<
+    string,
+    Record<string, Record<string, string[]>>
+  > {
+    return this.clientAssets;
   }
 
   setup(api: any) {
@@ -209,7 +222,10 @@ export default class MarkoRspackPlugin {
 
               this.needsManifestSync = true;
               const filename = resource.replace(/\?server-entry$/, '');
-              const entryTemplateId = moduleName(filename);
+              // Entry names become output filenames — strip leading dots
+              // (e.g. ".marko-run" parent dir) that static hosts treat as
+              // hidden files.
+              const entryTemplateId = moduleName(filename).replace(/^\.+/, '');
 
               if (!removedEntryIds.delete(entryTemplateId)) {
                 hasChangedEntries = true;
@@ -233,91 +249,6 @@ export default class MarkoRspackPlugin {
             }
 
             this.entriesReady.resolve();
-          },
-        );
-
-        compilation.hooks.processAssets.tapPromise(
-          {
-            name: 'MarkoRspackServer:processAssets',
-            stage: -100,
-          },
-          async () => {
-            if (!this.needsManifestSync || !Object.keys(this.clientEntries).length) {
-              return;
-            }
-
-            await Promise.all(
-              this.browserCompilers.map(
-                (browserCompiler) => browserCompiler.markoAssetsPending,
-              ),
-            );
-
-            const clientAssets = this.sortKeys(this.clientAssets);
-            let placeholderFound = false;
-
-            for (const chunk of compilation.chunks) {
-              if (!chunk.canBeInitial()) {
-                continue;
-              }
-
-              for (const file of chunk.files) {
-                compilation.updateAsset(file, (old: sources.Source) => {
-                  const placeholder = 'MARKO_MANIFEST_PLACEHOLDER';
-                  const placeholderPosition = old
-                    .source()
-                    .toString()
-                    .indexOf(placeholder);
-
-                  if (placeholderPosition < 0) {
-                    return old;
-                  }
-
-                  placeholderFound = true;
-                  const hasMultipleBuilds = this.browserCompilers.length > 1;
-                  const defaultBuild =
-                    this.browserCompilers.length > 0 &&
-                    this.browserCompilers[0].name
-                      ? clientAssets[this.browserCompilers[0].name] || {}
-                      : {};
-
-                  const content = hasMultipleBuilds
-                    ? `{
-          getAssets(entry, buildName) {
-            const buildAssets = this.builds[buildName];
-            if (!buildAssets) {
-              throw new Error("Unable to load assets for build with a '$global.buildName' of '" + buildName + "'.");
-            }
-            return buildAssets[entry] || {};
-          },
-          builds: ${JSON.stringify(clientAssets)}
-        }`
-                    : `{
-          getAssets(entry) {
-            return this.build[entry] || {};
-          },
-          build: ${JSON.stringify(defaultBuild)}
-        }`;
-
-                  const newSource = new sources.ReplaceSource(old);
-                  newSource.replace(
-                    placeholderPosition,
-                    placeholderPosition + placeholder.length - 1,
-                    content,
-                  );
-
-                  return newSource;
-                });
-              }
-            }
-
-            if (
-              Object.keys(this.clientEntries).length > 0 &&
-              !placeholderFound
-            ) {
-              throw new Error(
-                'Unable to inject the Marko manifest because the server bundle did not contain MARKO_MANIFEST_PLACEHOLDER.',
-              );
-            }
           },
         );
       },

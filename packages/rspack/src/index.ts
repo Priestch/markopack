@@ -2,10 +2,11 @@ import path from "node:path";
 import fs from "node:fs";
 import { rspack } from "@rspack/core";
 import type { MultiCompiler, Compiler, Configuration } from "@rspack/core";
-import { renderRouteTypeInfo } from "@markopack/core/vite/codegen";
-import type { Adapter, BuiltRoutes } from "@markopack/core/vite/types";
+import { renderRouteTypeInfo } from "@markopack/core/codegen";
+import type { Adapter, BuiltRoutes } from "@markopack/core/types";
 import { createConfigs } from "./config.js";
 import { buildAndWriteRoutes, type MarkoRunRspackOptions, type RouteBuildResult } from "./routes.js";
+import { injectLinkAssetsManifest } from "./link-assets.js";
 import { startDevServer, type DevServer } from "./dev.js";
 import MarkoRspackPlugin from "@markopack/compiler";
 
@@ -18,18 +19,39 @@ export interface RspackOptions extends MarkoRunRspackOptions {
   mode?: "development" | "production";
   port?: number;
   adapter?: Adapter | null;
+  /**
+   * Enable the @marko/run file-routing pipeline. Set to false for a pure
+   * Marko app (no @marko/run dependency); a server entry is then required
+   * (see serverEntry). Default: true.
+   */
+  routes?: boolean;
+  /**
+   * Server entry used with { routes: false }. Default: "./src/server.ts"
+   * (falls back to "./src/server.js").
+   */
+  serverEntry?: string;
+  /**
+   * Customize the generated rspack configurations before compilation —
+   * e.g. to add loaders (PostCSS/Tailwind), aliases, or plugins. Mutate the
+   * passed config in place, or return a configuration to replace it.
+   */
+  rspack?: (config: Configuration, side: "browser" | "server") => Configuration | void;
 }
 
-export async function build(options: RspackOptions = {}): Promise<void> {
-  const root = path.resolve(options.root || process.cwd());
-  const outputDir = path.resolve(root, options.outputDir || "dist");
-  const mode = options.mode || "production";
+async function buildRoutes(
+  options: RspackOptions,
+  root: string,
+  isBuild: boolean,
+): Promise<RouteBuildResult | undefined> {
+  if (options.routes === false) {
+    return undefined;
+  }
+
   const routesDir = options.routesDir || "src/routes";
-  const entry = options.entry || "./src/index.ts";
   const trailingSlashes = options.trailingSlashes || "RedirectWithout";
   const adapter = options.adapter ?? null;
 
-  adapter?.configure?.({ root, isBuild: true });
+  adapter?.configure?.({ root, isBuild });
   adapter?.pluginOptions?.(options as any);
 
   const routeResult = await buildAndWriteRoutes(
@@ -48,7 +70,21 @@ export async function build(options: RspackOptions = {}): Promise<void> {
     });
   }
 
-  await writeTypesFile(root, routeResult, adapter);
+  if (isBuild) {
+    await writeTypesFile(root, routeResult, adapter);
+  }
+
+  return routeResult;
+}
+
+export async function build(options: RspackOptions = {}): Promise<void> {
+  const root = path.resolve(options.root || process.cwd());
+  const outputDir = path.resolve(root, options.outputDir || "dist");
+  const mode = options.mode || "production";
+  const entry = options.entry || "./src/index.ts";
+  const adapter = options.adapter ?? null;
+
+  const routeResult = await buildRoutes(options, root, true);
 
   const { web, node, markoPlugin } = createConfigs({
     root,
@@ -56,10 +92,11 @@ export async function build(options: RspackOptions = {}): Promise<void> {
     outputDir,
     mode,
     routeResult,
+    serverEntry: options.serverEntry,
   });
 
-  const webConfig = withMarkoPlugin(web, "browser", markoPlugin);
-  const nodeConfig = withMarkoPlugin(node, "server", markoPlugin);
+  const webConfig = customize(withMarkoPlugin(web, "browser", markoPlugin), "browser", options);
+  const nodeConfig = customize(withMarkoPlugin(node, "server", markoPlugin), "server", options);
 
   const compiler = rspack([webConfig, nodeConfig]) as MultiCompiler;
   markoPlugin.applyDependencies(compiler as Compiler, false);
@@ -77,7 +114,14 @@ export async function build(options: RspackOptions = {}): Promise<void> {
           return;
         }
 
-        if (adapter?.buildEnd && routeResult.routes) {
+        // Must precede adapter.buildEnd: the crawl renders pages through the
+        // server bundle, whose link-assets runtime needs the manifest.
+        injectLinkAssetsManifest(
+          markoPlugin,
+          path.join(outputDir, "server", "index.cjs"),
+        );
+
+        if (adapter?.buildEnd && routeResult?.routes) {
           const serverDist = path.join(outputDir, "server");
           const serverEntry = path.join(serverDist, "index.cjs");
           const builtEntries = fs.existsSync(serverEntry) ? [serverEntry] : [];
@@ -102,30 +146,10 @@ export async function dev(options: RspackOptions = {}): Promise<DevServer> {
   const root = path.resolve(options.root || process.cwd());
   const outputDir = path.resolve(root, options.outputDir || "dist");
   const mode = "development";
-  const routesDir = options.routesDir || "src/routes";
   const entry = options.entry || "./src/index.ts";
-  const trailingSlashes = options.trailingSlashes || "RedirectWithout";
   const port = options.port || Number(process.env.PORT) || 3000;
-  const adapter = options.adapter ?? null;
 
-  adapter?.configure?.({ root, isBuild: false });
-  adapter?.pluginOptions?.(options as any);
-
-  const routeResult = await buildAndWriteRoutes(
-    root,
-    routesDir,
-    trailingSlashes,
-    adapter,
-    options.debug,
-  );
-
-  if (adapter?.routesGenerated && routeResult.routes) {
-    await adapter.routesGenerated({
-      routes: routeResult.routes,
-      virtualFiles: routeResult.virtualModules,
-      meta: { buildTime: 0, renderTime: 0 },
-    });
-  }
+  const routeResult = await buildRoutes(options, root, false);
 
   const { web, node, markoPlugin } = createConfigs({
     root,
@@ -133,10 +157,11 @@ export async function dev(options: RspackOptions = {}): Promise<DevServer> {
     outputDir,
     mode,
     routeResult,
+    serverEntry: options.serverEntry,
   });
 
-  const webConfig = withMarkoPlugin(web, "browser", markoPlugin);
-  const nodeConfig = withMarkoPlugin(node, "server", markoPlugin);
+  const webConfig = customize(withMarkoPlugin(web, "browser", markoPlugin), "browser", options);
+  const nodeConfig = customize(withMarkoPlugin(node, "server", markoPlugin), "server", options);
 
   const compiler = rspack([webConfig, nodeConfig]) as MultiCompiler;
   markoPlugin.applyDependencies(compiler as Compiler, true);
@@ -145,9 +170,19 @@ export async function dev(options: RspackOptions = {}): Promise<DevServer> {
     root,
     outputDir,
     port,
+    routes: options.routes !== false,
     routeResult,
-    trailingSlashes,
+    trailingSlashes: options.trailingSlashes || "RedirectWithout",
+    markoPlugin,
   });
+}
+
+function customize(
+  config: Configuration,
+  side: "browser" | "server",
+  options: RspackOptions,
+): Configuration {
+  return options.rspack?.(config, side) ?? config;
 }
 
 function withMarkoPlugin(

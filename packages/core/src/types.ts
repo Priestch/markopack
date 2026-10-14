@@ -1,14 +1,9 @@
-import type { Options as MarkoViteOptions } from "@marko/vite";
-import type { InlineConfig, Plugin, ResolvedConfig, UserConfig } from "vite";
-
 import type {
   HttpVerb,
   RoutableFileType,
   RoutableFileTypes,
 } from "./constants";
 import type { SpawnedServer } from "./utils/server";
-
-export type MarkoVitePluginOptions = MarkoViteOptions;
 
 export type { HttpVerb, RoutableFileType };
 
@@ -36,17 +31,15 @@ export interface StartPreviewOptions extends StartOptions {
 
 export interface Adapter {
   readonly name: string;
-  plugins?(event: {
-    root: string;
-    command: "dev" | "build";
-  }): Promise<Plugin[] | undefined> | Plugin[] | undefined;
   configure?(config: AdapterConfig): void;
   pluginOptions?(options: Options): Promise<Options> | Options | undefined;
-  viteConfig?(config: UserConfig): Promise<UserConfig> | UserConfig | undefined;
   getEntryFile?(): Promise<string> | string;
+  // `config` was a Vite `InlineConfig` upstream. markopack never invokes this
+  // hook (its dev server is driven by @markopack/rspack), and adapters only
+  // pass the event through, so it stays loosely typed.
   startDev?(event: {
     entry: string | undefined;
-    config: InlineConfig;
+    config: any;
     options: StartDevOptions;
   }): Promise<SpawnedServer> | SpawnedServer;
   startPreview?(event: {
@@ -54,7 +47,8 @@ export interface Adapter {
     options: StartPreviewOptions;
   }): Promise<SpawnedServer> | SpawnedServer;
   buildEnd?(event: {
-    config: ResolvedConfig;
+    // Was a Vite `ResolvedConfig` upstream; markopack passes a stub.
+    config: unknown;
     routes: BuiltRoutes;
     builtEntries: string[];
     sourceEntries: string[];
@@ -84,7 +78,7 @@ export interface MarkoRunOptions extends Partial<RouterOptions> {
   adapter?: Adapter | null;
 }
 
-export type Options = MarkoRunOptions & MarkoViteOptions;
+export type Options = MarkoRunOptions;
 
 export interface Route {
   key: string;

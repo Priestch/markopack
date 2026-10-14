@@ -22,30 +22,6 @@ export default function netlifyAdapter(options: Options = {}): Adapter {
   return {
     name: "netlify-adapter",
 
-    viteConfig(config) {
-      if (config.build?.ssr) {
-        return {
-          ssr: {
-            target: options.edge ? "webworker" : "node",
-            resolve: {
-              dedupe: ["marko"],
-              conditions: options.edge
-                ? [
-                    "worker",
-                    "node",
-                    "import",
-                    "require",
-                    "production",
-                    "default",
-                  ]
-                : undefined,
-            },
-            noExternal: true,
-          },
-        };
-      }
-    },
-
     getEntryFile() {
       return defaultEntry;
     },

@@ -63,6 +63,44 @@ markopack inherits all `@marko/run` conventions:
 
 Routes live in `src/routes/` by default and map directly to URL paths.
 
+## Pure Marko Mode (no `@marko/run`)
+
+Only want Marko components + SSR, without the file-routing layer? Pass `routes: false` — `@marko/run` is then not needed at all. You provide your own server entry and own the HTTP server:
+
+```js
+// build.mjs
+import { build } from "@markopack/rspack";
+
+build({
+  root: import.meta.dirname,
+  routes: false,                     // skip the routing pipeline
+  entry: "./src/index.ts",           // browser entry (hydration)
+  serverEntry: "./src/server.ts",    // your own server (default: ./src/server.ts)
+  mode: "production",
+});
+```
+
+```ts
+// src/server.ts — you own the HTTP server
+import http from "node:http";
+import App from "./app.marko";
+
+const server = http.createServer((req, res) => {
+  res.setHeader("content-type", "text/html;charset=UTF-8");
+  res.end(`<!DOCTYPE html><html><body>${App.render({}).toString()}</body></html>`);
+});
+server.listen(3000);
+
+// markopack's dev mode calls this before reloading the server bundle,
+// releasing the port so the new server can listen again.
+export function close() {
+  server.close();
+  server.closeAllConnections?.();
+}
+```
+
+See [`examples/rspack-pure-marko`](./examples/rspack-pure-marko) for a complete working example.
+
 ## Repository Commands
 
 ```bash
@@ -86,6 +124,7 @@ npm run sync:marko-run:check    # dry-run (no writes)
 ## Examples
 
 - **[`examples/rspack-basic`](./examples/rspack-basic)** — Multi-page app demonstrating static routes, dynamic segments, catch-all routes, layout groups, API handlers, and hot reload.
+- **[`examples/rspack-pure-marko`](./examples/rspack-pure-marko)** — Pure Marko app with `routes: false`: no `@marko/run`, custom server entry, SSR + hydration.
 
 ## Contributing
 

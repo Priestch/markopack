@@ -39,7 +39,7 @@ await build({
 });
 
 // Generate declaration file
-const dts = `import type { Adapter, BuiltRoutes } from "@markopack/core/vite/types";
+const dts = `import type { Adapter, BuiltRoutes } from "@markopack/core/types";
 
 export interface RspackOptions {
   root?: string;

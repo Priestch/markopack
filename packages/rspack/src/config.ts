@@ -14,18 +14,35 @@ export interface CreateConfigsOptions {
   entry: string;
   outputDir: string;
   mode: "development" | "production";
-  routeResult: RouteBuildResult;
+  /** Route build output. Omit when routes are disabled to skip the @marko/run pipeline. */
+  routeResult?: RouteBuildResult;
+  /** Server entry used when routeResult is omitted (pure Marko mode). */
+  serverEntry?: string;
 }
 
-const markoRunRoot = projectRequire
-  .resolve("@marko/run")
-  .replace(/(src|dist)[\\/]runtime[\\/].*$/, "");
+let markoRunRuntimeInternalCache: string | undefined;
 
-const markoRunRuntimeInternal = fs.existsSync(
-  path.join(markoRunRoot, "dist/runtime/internal.js"),
-)
-  ? path.join(markoRunRoot, "dist/runtime/internal.js")
-  : path.join(markoRunRoot, "dist/runtime/internal.cjs");
+function markoRunRuntimeInternal(): string {
+  if (!markoRunRuntimeInternalCache) {
+    let runRoot: string;
+    try {
+      runRoot = projectRequire
+        .resolve("@marko/run")
+        .replace(/(src|dist)[\\/]runtime[\\/].*$/, "");
+    } catch {
+      throw new Error(
+        'Cannot resolve "@marko/run" — it is required when routes are enabled. ' +
+          "Pass { routes: false } to build a pure Marko app without @marko/run.",
+      );
+    }
+    markoRunRuntimeInternalCache = fs.existsSync(
+      path.join(runRoot, "dist/runtime/internal.js"),
+    )
+      ? path.join(runRoot, "dist/runtime/internal.js")
+      : path.join(runRoot, "dist/runtime/internal.cjs");
+  }
+  return markoRunRuntimeInternalCache;
+}
 
 const markoLoaderPath = (() => {
   // Resolve marko-loader from @markopack/compiler package
@@ -39,50 +56,66 @@ const markoLoaderPath = (() => {
 export function createConfigs(
   options: CreateConfigsOptions,
 ): { web: Configuration; node: Configuration; markoPlugin: MarkoRspackPlugin } {
-  const { root, entry, outputDir, mode, routeResult } = options;
-  const { entryFilesDir, routerPath, virtualModules } = routeResult;
+  const { root, entry, outputDir, mode } = options;
+  const routeResult = options.routeResult;
+  const routesEnabled = !!routeResult;
+  const { entryFilesDir, routerPath, virtualModules } = routeResult ?? {
+    entryFilesDir: "",
+    routerPath: "",
+    virtualModules: [] as [string, string][],
+  };
 
   const clientDist = path.join(outputDir, "client");
   const serverDist = path.join(outputDir, "server");
-
-  const resolveAlias: Record<string, string> = {
-    "@marko/run/router": routerPath,
-    "virtual:marko-run/runtime/internal": markoRunRuntimeInternal,
-    "virtual:marko-run": entryFilesDir,
-  };
 
   const resolveConfig: Configuration["resolve"] = {
     extensions: [".ts", ".js", ".json"],
     extensionAlias: {
       ".js": [".ts", ".js"],
     },
-    alias: resolveAlias,
+    alias: routesEnabled
+      ? {
+          "@marko/run/router": routerPath,
+          "virtual:marko-run/runtime/internal": markoRunRuntimeInternal(),
+          "virtual:marko-run": entryFilesDir,
+        }
+      : undefined,
     tsConfig: tsConfigPath(root),
   };
 
-  const virtualModulesPlugin = new rspack.experiments.VirtualModulesPlugin(
-    Object.fromEntries(virtualModules),
-  );
-
-  const nmReplacementPlugin = new rspack.NormalModuleReplacementPlugin(
-    /^virtual:marko-run\//,
-    (resource: any) => {
-      if (resource.request === "virtual:marko-run/runtime/internal") {
-        resource.request = markoRunRuntimeInternal;
-      } else {
-        resource.request = resource.request.replace(
-          "virtual:marko-run",
-          entryFilesDir,
-        );
-      }
-    },
-  );
+  const routePlugins = routesEnabled
+    ? [
+        new rspack.experiments.VirtualModulesPlugin(
+          Object.fromEntries(virtualModules),
+        ),
+        new rspack.NormalModuleReplacementPlugin(
+          /^virtual:marko-run\//,
+          (resource: any) => {
+            if (resource.request === "virtual:marko-run/runtime/internal") {
+              resource.request = markoRunRuntimeInternal();
+            } else {
+              resource.request = resource.request.replace(
+                "virtual:marko-run",
+                entryFilesDir,
+              );
+            }
+          },
+        ),
+      ]
+    : [];
 
   const webEntry: Record<string, { import: string[] }> = {
     index: { import: [path.resolve(root, entry)] },
   };
   const nodeEntry: Record<string, { import: string[]; filename?: string }> = {
-    index: { import: [routerPath], filename: "index.cjs" },
+    index: {
+      import: [
+        routesEnabled
+          ? routerPath
+          : path.resolve(root, requireServerEntry(root, options.serverEntry)),
+      ],
+      filename: "index.cjs",
+    },
   };
 
   const markoPlugin = new MarkoRspackPlugin({
@@ -164,8 +197,7 @@ export function createConfigs(
       ],
     },
     plugins: [
-      virtualModulesPlugin,
-      nmReplacementPlugin,
+      ...routePlugins,
       new rspack.DefinePlugin({
         "process.env.NODE_ENV": JSON.stringify(mode),
       }),
@@ -237,15 +269,15 @@ export function createConfigs(
           ],
         },
         {
+          // Server-side CSS imports resolve to the file's contents as a
+          // string — nothing to bundle or extract for SSR.
           test: /\.css$/,
-          use: [{ loader: markoLoaderPath, options: { output: "html" } }],
-          type: "javascript/auto",
+          type: "asset/source",
         },
       ],
     },
     plugins: [
-      virtualModulesPlugin,
-      nmReplacementPlugin,
+      ...routePlugins,
       new rspack.DefinePlugin({
         "process.env.NODE_ENV": JSON.stringify(mode),
       }),
@@ -258,6 +290,21 @@ export function createConfigs(
   };
 
   return { web: webConfig, node: nodeConfig, markoPlugin };
+}
+
+function requireServerEntry(root: string, specified?: string): string {
+  const candidates = specified
+    ? [specified]
+    : ["./src/server.ts", "./src/server.js"];
+  for (const candidate of candidates) {
+    if (fs.existsSync(path.resolve(root, candidate))) {
+      return candidate;
+    }
+  }
+  throw new Error(
+    `Server entry not found (tried: ${candidates.join(", ")}). ` +
+      "With { routes: false }, pass serverEntry pointing at your server entry.",
+  );
 }
 
 function tsConfigPath(root: string): string | undefined {

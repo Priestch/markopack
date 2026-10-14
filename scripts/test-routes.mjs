@@ -40,12 +40,13 @@ function wait(ms) {
 
 async function stopProcess(proc) {
   if (proc.exitCode != null) return;
-  proc.kill("SIGTERM");
+  // proc is detached with shell:true, so it leads its own process group —
+  // kill the whole group or the dev-server grandchild survives.
+  try { process.kill(-proc.pid, "SIGTERM"); } catch {}
   await Promise.race([new Promise((resolve) => proc.once("exit", resolve)), wait(2000)]);
-  if (proc.exitCode == null) {
-    proc.kill("SIGKILL");
-    await Promise.race([new Promise((resolve) => proc.once("exit", resolve)), wait(2000)]);
-  }
+  if (proc.exitCode != null) return;
+  try { process.kill(-proc.pid, "SIGKILL"); } catch {}
+  await Promise.race([new Promise((resolve) => proc.once("exit", resolve)), wait(2000)]);
 }
 
 async function main() {
@@ -141,7 +142,8 @@ async function main() {
   await stopProcess(proc);
 
   console.log(`\n  ${passed} passed, ${failed} failed, ${ROUTES.length} total`);
-  if (failed > 0) process.exit(1);
+  // Exit explicitly: lingering keep-alive sockets from fetch keep the loop alive.
+  process.exit(failed > 0 ? 1 : 0);
 }
 
 main().catch((err) => {

@@ -1,0 +1,17 @@
+{
+  "name": "@markopack/example-rspack-pure-marko",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node dev.mjs",
+    "build": "node build.mjs",
+    "start": "node dist/server/index.cjs"
+  },
+  "dependencies": {
+    "marko": "^6.4.5"
+  },
+  "devDependencies": {
+    "@markopack/rspack": "file:../../packages/rspack"
+  }
+}

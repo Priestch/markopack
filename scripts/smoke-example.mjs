@@ -11,12 +11,13 @@ function wait(ms) {
 
 async function stopProcess(proc) {
   if (proc.exitCode != null) return;
-  proc.kill("SIGTERM");
+  // proc is detached with shell:true, so it leads its own process group —
+  // kill the whole group or the dev-server grandchild survives.
+  try { process.kill(-proc.pid, "SIGTERM"); } catch {}
   await Promise.race([new Promise((resolve) => proc.once("exit", resolve)), wait(1200)]);
-  if (proc.exitCode == null) {
-    proc.kill("SIGKILL");
-    await Promise.race([new Promise((resolve) => proc.once("exit", resolve)), wait(1200)]);
-  }
+  if (proc.exitCode != null) return;
+  try { process.kill(-proc.pid, "SIGKILL"); } catch {}
+  await Promise.race([new Promise((resolve) => proc.once("exit", resolve)), wait(1200)]);
 }
 
 async function main() {
@@ -86,6 +87,8 @@ async function main() {
   } finally {
     await stopProcess(proc);
   }
+  // Exit explicitly: lingering keep-alive sockets from fetch keep the loop alive.
+  process.exit(0);
 }
 
 main().catch((err) => {

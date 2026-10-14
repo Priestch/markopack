@@ -8,8 +8,8 @@
     "preview": "PORT=${PORT:-4100} marko-run preview"
   },
   "dependencies": {
-    "@marko/run": "0.9.7",
-    "marko": "5.38.2",
+    "@marko/run": "0.11.13",
+    "marko": "6.4.5",
     "sass": "^1.93.2"
   }
 }

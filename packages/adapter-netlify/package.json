@@ -28,7 +28,7 @@
     "@netlify/functions": "^3.0.4"
   },
   "peerDependencies": {
-    "@marko/run": "^0.9.0"
+    "@marko/run": "^0.11.0"
   },
   "engines": {
     "node": ">=18.0.0"

@@ -29,7 +29,7 @@ npm run sync:marko-run:check    # dry-run
 npm run bench:setup && npm run bench:perf
 ```
 
-There is no formal test suite — verification is done via `npm run verify:example` (smoke test) and `npm run test:routes`.
+There is no formal test suite — verification is done via `npm run verify:example` (smoke test), `npm run test:routes`, and `npm run test:contract` (asserts generated match objects against the installed `@marko/run` runtime — guards against upstream drift like the 0.11 `route.options` breakage).
 
 ## Architecture
 

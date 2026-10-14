@@ -278,7 +278,7 @@ export function aboutPageMarko(): string {
 
 export function handlerFile(opts: TemplateOptions): string {
   if (opts.typescript) {
-    return `import type { RequestContext } from "@markopack/core/vite/types";
+    return `import type { RequestContext } from "@markopack/core/types";
 
 export async function GET(context: RequestContext) {
   return new Response("Hello from markopack!");

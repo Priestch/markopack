@@ -110,6 +110,9 @@ export function renderRouteEntry(route: Route, rootDir: string): string {
   if (handler || middleware.length) {
     runtimeImports.push("call");
   }
+  if (page) {
+    runtimeImports.push("render");
+  }
   if (!page || verbs.some((verb) => verb !== "get" && verb !== "head")) {
     runtimeImports.push("noContent");
   }
@@ -152,7 +155,7 @@ export function renderRouteEntry(route: Route, rootDir: string): string {
 
   if (page) {
     imports.writeLines(
-      `import page from "${normalizedRelativePath(rootDir, route.templateFilePath || page.filePath)}";`,
+      `import page from "${normalizedRelativePath(rootDir, route.templateFilePath || page.filePath)}?server-entry";`,
     );
   }
   if (meta) {
@@ -211,14 +214,14 @@ function writeRouteEntryHandler(
       const name = `${verb}Handler`;
 
       continuations.writeLines(
-        `const ${currentName} = () => context.render(page, {});`,
+        `const ${currentName} = (data) => render(context, page, {}, data);`,
       );
 
       if (len) {
         nextName = currentName;
         currentName = `__${name}`;
         continuations.writeLines(
-          `const ${currentName} = () => call(${name}, ${nextName}, context);`,
+          `const ${currentName} = (data) => call(${name}, ${nextName}, context, data);`,
         );
       } else {
         if (verb === "head") {
@@ -235,10 +238,10 @@ function writeRouteEntryHandler(
       hasBody = true;
     } else if (len) {
       continuations.writeLines(
-        `const ${currentName} = () => context.render(page, {});`,
+        `const ${currentName} = (data) => render(context, page, {}, data);`,
       );
     } else {
-      writer.writeLines(`return context.render(page, {});`);
+      writer.writeLines(`return render(context, page, {});`);
       hasBody = true;
     }
   } else if (handler?.verbs?.includes(verb)) {
@@ -248,7 +251,7 @@ function writeRouteEntryHandler(
 
     if (len) {
       continuations.writeLines(
-        `const ${currentName} = () => call(${name}, ${nextName}, context);`,
+        `const ${currentName} = (data) => call(${name}, ${nextName}, context, data);`,
       );
     } else {
       if (verb === "head") {
@@ -276,7 +279,7 @@ function writeRouteEntryHandler(
       currentName = i ? `__${name}` : "";
       if (currentName) {
         continuations.writeLines(
-          `const ${currentName} = () => call(${name}, ${nextName}, context);`,
+          `const ${currentName} = (data) => call(${name}, ${nextName}, context, data);`,
         );
       } else if (verb === "head") {
         continuations.writeLines(
@@ -332,7 +335,7 @@ export function renderRouter(
   }
   for (const route of Object.values(routes.special) as Route[]) {
     imports.writeLines(
-      `import page${route.key} from "${normalizedRelativePath(rootDir, route.templateFilePath || route.page!.filePath)}";`,
+      `import page${route.key} from "${normalizedRelativePath(rootDir, route.templateFilePath || route.page!.filePath)}?server-entry";`,
     );
   }
 
@@ -489,7 +492,7 @@ export async function fetch(request, platform) {
   writer.write(`   
     return await invoke(route, request, platform, url);
   } catch (error) {
-    if (import.meta.env.DEV) {
+    if (process.env.NODE_ENV !== "production") {
       throw error;
     }
     return new Response(null, {
@@ -705,7 +708,7 @@ function renderMatch(
   const handler = `${verb}${route.index}`;
   const params = path.params ? renderParams(path.params, pathIndex) : "{}";
   const meta = route.meta ? `${verb}${route.index}_meta` : "{}";
-  return `{ handler: ${handler}, params: ${params}, meta: ${meta}, path: '${path.path}' }`;
+  return `{ handler: ${handler}, params: ${params}, meta: ${meta}, path: '${path.path}', options: {} }`;
 }
 
 export function renderMiddleware(

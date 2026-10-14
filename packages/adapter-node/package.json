@@ -31,8 +31,7 @@
     "@markopack/core": "^0.1.5"
   },
   "peerDependencies": {
-    "@marko/run": "^0.9.0",
-    "vite": "^7.0.0"
+    "@marko/run": "^0.11.0"
   },
   "engines": {
     "node": ">=18.0.0"

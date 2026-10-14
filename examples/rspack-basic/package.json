@@ -9,7 +9,7 @@
     "preview": "node preview.mjs"
   },
   "dependencies": {
-    "marko": "^5.38.2"
+    "marko": "^6.4.5"
   },
   "devDependencies": {
     "@markopack/rspack": "file:../../packages/rspack"

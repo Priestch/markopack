@@ -9,6 +9,8 @@ const fixtures = {
   rspack: path.join(root, "bench/marko-run-rspack"),
 };
 
+const resultsFile = path.join(root, "bench/results.jsonl");
+
 function cleanFixture(cwd) {
   const cleanupPaths = [
     "dist",
@@ -70,14 +72,21 @@ async function stopDevProcess(proc) {
   }
 }
 
-async function measureDevReady(name, cwd, basePort) {
+function stripAnsi(text) {
+  return text.replace(/\x1b\[[0-9;]*[A-Za-z]/g, "");
+}
+
+// `devReadyMs` is wall-clock from process spawn (includes npm/node startup);
+// `compileMs` is the time the bundler itself reports, which is the number
+// comparable across fixtures.
+async function measureDevReady(name, cwd, { command, args, port, readyTest, compileRegex }) {
   cleanFixture(cwd);
-  const proc = spawn("npm", ["run", "dev"], {
+  const proc = spawn(command, args, {
     cwd,
     shell: true,
     detached: true,
     stdio: ["ignore", "pipe", "pipe"],
-    env: { ...process.env, PORT: String(basePort) },
+    env: { ...process.env, PORT: String(port) },
   });
 
   let logs = "";
@@ -91,22 +100,21 @@ async function measureDevReady(name, cwd, basePort) {
   const start = Date.now();
 
   try {
-    for (let i = 0; i < 100; i++) {
-      const allPorts = [...logs.matchAll(/http:\/\/localhost:(\d+)/g)].map((m) => Number(m[1]));
+    for (let i = 0; i < 400; i++) {
+      const plain = stripAnsi(logs);
+      const allPorts = [...plain.matchAll(/http:\/\/localhost:(\d+)/g)].map((m) => Number(m[1]));
       const detected = allPorts.length ? allPorts[allPorts.length - 1] : undefined;
-      const ready =
-        logs.includes("ready   built in") ||
-        logs.includes("Server listening at") ||
-        logs.includes("Local:");
 
-      if (ready && detected) {
+      if (readyTest(plain) && detected) {
+        const compileMatch = plain.match(compileRegex);
         return {
           name,
           devReadyMs: Date.now() - start,
+          compileMs: compileMatch ? Number(compileMatch[1]) : undefined,
           port: detected,
         };
       }
-      await new Promise((r) => setTimeout(r, 200));
+      await wait(50);
     }
     const tail = logs.slice(-1200);
     throw new Error(`${name}: dev server did not become ready in time\n${tail}`);
@@ -115,46 +123,13 @@ async function measureDevReady(name, cwd, basePort) {
   }
 }
 
-async function measureDevReadyRspack(name, cwd, basePort) {
-  cleanFixture(cwd);
-  const script = path.join(root, "scripts/bench-rspack-dev.mjs");
-  const proc = spawn("node", [script, cwd, String(basePort)], {
-    cwd: root,
-    shell: true,
-    detached: true,
-    stdio: ["ignore", "pipe", "pipe"],
-    env: { ...process.env, PORT: String(basePort) },
-  });
-
-  let logs = "";
-  proc.stdout.on("data", (chunk) => {
-    logs += String(chunk);
-  });
-  proc.stderr.on("data", (chunk) => {
-    logs += String(chunk);
-  });
-
-  const start = Date.now();
-
+function gitInfo() {
   try {
-    for (let i = 0; i < 100; i++) {
-      const allPorts = [...logs.matchAll(/http:\/\/localhost:(\d+)/g)].map((m) => Number(m[1]));
-      const detected = allPorts.length ? allPorts[allPorts.length - 1] : undefined;
-      const ready = logs.includes("Rspack compiled successfully");
-
-      if (ready && detected) {
-        return {
-          name,
-          devReadyMs: Date.now() - start,
-          port: detected,
-        };
-      }
-      await new Promise((r) => setTimeout(r, 200));
-    }
-    const tail = logs.slice(-1200);
-    throw new Error(`${name}: dev server did not become ready in time\n${tail}`);
-  } finally {
-    await stopDevProcess(proc);
+    const sha = execSync("git rev-parse HEAD", { cwd: root, encoding: "utf8" }).trim();
+    const dirty = execSync("git status --porcelain", { cwd: root, encoding: "utf8" }).trim().length > 0;
+    return { sha, dirty };
+  } catch {
+    return { sha: null, dirty: null };
   }
 }
 
@@ -164,16 +139,46 @@ async function main() {
   const buildRspack = runTimedBuild("marko-run-rspack", fixtures.rspack);
 
   // Dev benchmarks
-  const devVite = await measureDevReady("marko-run-vite", fixtures.vite, 4100);
-  const devRspack = await measureDevReadyRspack(
-    "marko-run-rspack",
-    fixtures.rspack,
-    4200,
-  );
+  const devVite = await measureDevReady("marko-run-vite", fixtures.vite, {
+    command: "npm",
+    args: ["run", "dev"],
+    port: 4100,
+    readyTest: (plain) =>
+      plain.includes("ready   built in") ||
+      plain.includes("Server listening at") ||
+      plain.includes("Local:"),
+    compileRegex: /ready in (\d+) ms/,
+  });
+  const devRspack = await measureDevReady("marko-run-rspack", fixtures.rspack, {
+    command: "node",
+    args: [path.join(root, "scripts/bench-rspack-dev.mjs"), fixtures.rspack, "4200"],
+    port: 4200,
+    readyTest: (plain) => plain.includes("Rspack compiled successfully"),
+    compileRegex: /Rspack compiled successfully in (\d+) ms/,
+  });
 
   console.log("\nBenchmark results");
-  console.log(`  ${buildVite.name}:  build=${buildVite.buildSeconds}s, dev-ready=${devVite.devReadyMs}ms (port ${devVite.port})`);
-  console.log(`  ${buildRspack.name}: build=${buildRspack.buildSeconds}s, dev-ready=${devRspack.devReadyMs}ms (port ${devRspack.port})`);
+  for (const [build, dev] of [
+    [buildVite, devVite],
+    [buildRspack, devRspack],
+  ]) {
+    const compile = dev.compileMs != null ? `, dev-compile=${dev.compileMs}ms` : "";
+    console.log(
+      `  ${build.name}:  build=${build.buildSeconds}s, dev-ready=${dev.devReadyMs}ms (incl. startup)${compile} (port ${dev.port})`,
+    );
+  }
+
+  const record = {
+    timestamp: new Date().toISOString(),
+    git: gitInfo(),
+    node: process.version,
+    results: {
+      "marko-run-vite": { ...buildVite, devReadyMs: devVite.devReadyMs, devCompileMs: devVite.compileMs },
+      "marko-run-rspack": { ...buildRspack, devReadyMs: devRspack.devReadyMs, devCompileMs: devRspack.compileMs },
+    },
+  };
+  fs.appendFileSync(resultsFile, JSON.stringify(record) + "\n");
+  console.log(`\nResults appended to ${path.relative(root, resultsFile)}`);
 }
 
 main().catch((err) => {

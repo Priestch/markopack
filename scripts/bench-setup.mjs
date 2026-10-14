@@ -9,7 +9,7 @@ const fixtures = [
 
 console.log("Building local @markopack/compiler package");
 execSync("npm run build", {
-  cwd: path.join(root, "packages/marko-rspack"),
+  cwd: path.join(root, "packages/compiler"),
   stdio: "inherit",
   shell: true,
 });

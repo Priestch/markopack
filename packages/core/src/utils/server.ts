@@ -1,5 +1,8 @@
+// Trimmed from the vendored @marko/run source to just what markopack's
+// adapters use (loadEnv, spawnServer, getAvailablePort). The cluster-mode
+// machinery (spawnServerWorker, waitForWorker) and inspect-args parsing
+// were dropped. No longer kept in sync with upstream.
 import cp, { type ChildProcess, type StdioOptions } from "child_process";
-import cluster, { type Address, type Worker } from "cluster";
 import { config, parse } from "dotenv";
 import fs from "fs";
 import net, { type Socket } from "net";
@@ -9,7 +12,7 @@ export interface SpawnedServer {
   close(): Promise<void> | void;
 }
 
-export async function parseEnv(envFile: string) {
+async function parseEnv(envFile: string) {
   if (fs.existsSync(envFile)) {
     const content = await fs.promises.readFile(envFile, "utf8");
     return parse(content);
@@ -66,51 +69,6 @@ export async function spawnServer(
   };
 }
 
-export async function spawnServerWorker(
-  module: string,
-  args: string[] = [],
-  port: number = 0,
-  env?: string | Record<string, string>,
-  wait: boolean = true,
-): Promise<Worker> {
-  if (port <= 0) {
-    port = await getAvailablePort();
-  }
-  if (typeof env === "string") {
-    env = await parseEnv(env);
-  }
-
-  const originalExec = cluster.settings.exec;
-  const originalArgs = cluster.settings.execArgv;
-
-  try {
-    cluster.settings.exec = module;
-    cluster.settings.execArgv = args;
-    const worker = cluster.fork({
-      ...env,
-      NODE_ENV: "development",
-      ...process.env,
-      PORT: `${port}`,
-    });
-    if (wait) {
-      return new Promise<Worker>((resolve) => {
-        function ready(message: any) {
-          if (message === "ready") {
-            worker.off("message", ready);
-            resolve(worker);
-          }
-        }
-        worker.on("message", ready);
-      });
-    }
-    return worker;
-  } finally {
-    // Reset cluster settings.
-    cluster.settings.exec = originalExec;
-    cluster.settings.execArgv = originalArgs;
-  }
-}
-
 async function waitForExit(proc: ChildProcess, wait: number = 0) {
   if (proc.exitCode !== null) return;
 
@@ -122,7 +80,7 @@ async function waitForExit(proc: ChildProcess, wait: number = 0) {
   });
 }
 
-export async function waitForError(
+async function waitForError(
   proc: ChildProcess,
   port: number,
 ): Promise<void> {
@@ -138,7 +96,7 @@ export async function waitForError(
   });
 }
 
-export async function waitForServer(
+async function waitForServer(
   port: number,
   wait: number = 0,
 ): Promise<Socket> {
@@ -157,28 +115,7 @@ export async function waitForServer(
   return connection;
 }
 
-export async function waitForWorker(worker: Worker, port: number) {
-  return new Promise<void>((resolve, reject) => {
-    function listening(address: Address) {
-      if (address.port === port) {
-        worker.off("listening", listening);
-        resolve();
-      }
-    }
-    worker
-      .on("listening", listening)
-      .once("error", reject)
-      .once("exit", (code) => {
-        reject(
-          new Error(
-            `Worker exited with code ${code} while waiting for dev server to start on port "${port}".`,
-          ),
-        );
-      });
-  });
-}
-
-export async function getConnection(port: number): Promise<Socket | null> {
+async function getConnection(port: number): Promise<Socket | null> {
   return new Promise((resolve) => {
     const connection = net
       .connect(port)
@@ -194,12 +131,8 @@ export async function getConnection(port: number): Promise<Socket | null> {
   });
 }
 
-export async function isPortInUse(port: number): Promise<boolean> {
-  return Boolean(await getConnection(port));
-}
-
 export async function getAvailablePort(port?: number): Promise<number> {
-  if (port && !(await isPortInUse(port))) {
+  if (port && !(await getConnection(port))) {
     return port;
   }
 
@@ -213,23 +146,4 @@ export async function getAvailablePort(port?: number): Promise<number> {
 
 function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-export function getInspectOptions(args: string[]):
-  | {
-      host: string | undefined;
-      port: number | undefined;
-      wait: boolean | undefined;
-    }
-  | undefined {
-  for (const arg of args) {
-    const match = arg.match(/^--inspect(-brk)?(?:=(?:(.+):)?(.+))?$/);
-    if (match) {
-      return {
-        host: match[2],
-        port: parseInt(match[3], 10) || undefined,
-        wait: !!match[1],
-      };
-    }
-  }
 }

@@ -4,6 +4,7 @@ export default defineConfig({
   entry: {
     index: './src/MarkoRspackPlugin.ts',
     'marko-loader': './src/marko-loader.ts',
+    'link-assets-runtime': './src/link-assets-runtime.ts',
   },
   format: ['esm', 'cjs'],
   target: 'node18',

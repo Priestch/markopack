@@ -39,8 +39,14 @@ MARKO_RUN_REPO=https://github.com/marko-js/run.git MARKO_RUN_REF=<sha> npm run s
 
 - Core route/codegen/utils used by rspack integration:
   - `packages/run/src/vite/**` selected files
-  - `packages/run/src/adapter/middleware.ts`
 - Official adapter sources (node/static/netlify), preferring monorepo adapter paths and falling back to `node_modules/@marko/run-adapter-*`.
+
+## What Is No Longer Synced
+
+- `adapter/middleware.ts` — replaced by a re-export of `@marko/run/adapter/middleware` (a public export since 0.11 with an identical API).
+- `utils/server.ts` — trimmed to the subset markopack's adapters use (`loadEnv`, `spawnServer`, `getAvailablePort`); the cluster-mode machinery was dropped.
+- `adapter-node/src/ensure-runtime.ts` — trimmed to the production passthrough; the upstream Vite dev-server bootstrap can't run under markopack, which drives dev itself.
+- Vite-shaped hooks — the vendored `Adapter` interface no longer has `plugins`/`viteConfig`, and no package depends on `vite` or `@marko/vite`. After syncing `core/src/types.ts` these local modifications must be re-applied.
 
 ## After Sync
 
@@ -48,7 +54,10 @@ Run:
 
 ```bash
 npm run verify:example
+npm run test:contract
 ```
+
+`test:contract` is the one that catches codegen/runtime drift (e.g. a new field the runtime reads off match objects) — run it first after any sync.
 
 Then review and commit with a message like:
 

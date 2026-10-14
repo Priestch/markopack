@@ -7,23 +7,23 @@ import {
   renderRouter,
   renderRouteTemplate,
   renderRouteTypeInfo,
-} from "@markopack/core/vite/codegen";
+} from "@markopack/core/codegen";
 import {
   httpVerbs,
   markoRunFilePrefix,
   RoutableFileTypes,
   virtualFilePrefix,
-} from "@markopack/core/vite/constants";
-import { buildRoutes } from "@markopack/core/vite/routes/builder";
-import { createFSWalker } from "@markopack/core/vite/routes/walk";
+} from "@markopack/core/constants";
+import { buildRoutes } from "@markopack/core/routes/builder";
+import { createFSWalker } from "@markopack/core/routes/walk";
 import type {
   Adapter,
   BuiltRoutes,
   HttpVerb,
   Route,
-} from "@markopack/core/vite/types";
-import { normalizePath } from "@markopack/core/vite/utils/fs";
-import { getRouteVirtualFileName } from "@markopack/core/vite/utils/route";
+} from "@markopack/core/types";
+import { normalizePath } from "@markopack/core/utils/fs";
+import { getRouteVirtualFileName } from "@markopack/core/utils/route";
 
 const MIDDLEWARE_FILENAME = `${markoRunFilePrefix}middleware.js`;
 const ROUTER_FILENAME = `${markoRunFilePrefix}router.js`;

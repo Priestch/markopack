@@ -77,18 +77,19 @@ function checkoutRef(repoDir, ref) {
 }
 
 const CORE_MAPPINGS = [
-  ["packages/run/src/vite/constants.ts", "packages/core/src/vite/constants.ts"],
-  ["packages/run/src/vite/types.ts", "packages/core/src/vite/types.ts"],
-  ["packages/run/src/vite/routes/builder.ts", "packages/core/src/vite/routes/builder.ts"],
-  ["packages/run/src/vite/routes/parse.ts", "packages/core/src/vite/routes/parse.ts"],
-  ["packages/run/src/vite/routes/vdir.ts", "packages/core/src/vite/routes/vdir.ts"],
-  ["packages/run/src/vite/routes/walk.ts", "packages/core/src/vite/routes/walk.ts"],
-  ["packages/run/src/vite/codegen/index.ts", "packages/core/src/vite/codegen/index.ts"],
-  ["packages/run/src/vite/codegen/writer.ts", "packages/core/src/vite/codegen/writer.ts"],
-  ["packages/run/src/vite/utils/fs.ts", "packages/core/src/vite/utils/fs.ts"],
-  ["packages/run/src/vite/utils/route.ts", "packages/core/src/vite/utils/route.ts"],
-  ["packages/run/src/vite/utils/server.ts", "packages/core/src/vite/utils/server.ts"],
-  ["packages/run/src/adapter/middleware.ts", "packages/core/src/adapter/middleware.ts"],
+  ["packages/run/src/vite/constants.ts", "packages/core/src/constants.ts"],
+  ["packages/run/src/vite/types.ts", "packages/core/src/types.ts"],
+  ["packages/run/src/vite/routes/builder.ts", "packages/core/src/routes/builder.ts"],
+  ["packages/run/src/vite/routes/parse.ts", "packages/core/src/routes/parse.ts"],
+  ["packages/run/src/vite/routes/vdir.ts", "packages/core/src/routes/vdir.ts"],
+  ["packages/run/src/vite/routes/walk.ts", "packages/core/src/routes/walk.ts"],
+  ["packages/run/src/vite/codegen/index.ts", "packages/core/src/codegen/index.ts"],
+  ["packages/run/src/vite/codegen/writer.ts", "packages/core/src/codegen/writer.ts"],
+  ["packages/run/src/vite/utils/fs.ts", "packages/core/src/utils/fs.ts"],
+  ["packages/run/src/vite/utils/route.ts", "packages/core/src/utils/route.ts"],
+  // utils/server.ts is no longer synced: trimmed to the subset markopack uses.
+  // adapter/middleware.ts is no longer vendored: re-exported from
+  // @marko/run/adapter/middleware (public export since 0.11).
 ];
 
 const ADAPTER_MAPPINGS = [
@@ -106,13 +107,9 @@ const ADAPTER_MAPPINGS = [
     ],
     target: "packages/adapter-node/src/middleware.ts",
   },
-  {
-    candidates: [
-      "packages/adapters/node/src/ensure-runtime.ts",
-      "node_modules/@marko/run-adapter-node/src/ensure-runtime.ts",
-    ],
-    target: "packages/adapter-node/src/ensure-runtime.ts",
-  },
+  // adapter-node/src/ensure-runtime.ts is no longer synced: trimmed to the
+  // production path (the upstream Vite dev-server bootstrap can't run under
+  // markopack, which drives dev itself).
   {
     candidates: [
       "packages/adapters/static/src/index.ts",
@@ -198,29 +195,8 @@ async function copyIfChanged(fromAbs, toAbs, write) {
 
 function applyLocalTransforms(target, data) {
   switch (target) {
-    case "packages/core/src/vite/types.ts": {
-      if (!data.includes("export type MarkoVitePluginOptions = MarkoViteOptions;")) {
-        data = data.replace(
-          'import type { SpawnedServer } from "./utils/server";\n',
-          'import type { SpawnedServer } from "./utils/server";\n\nexport type MarkoVitePluginOptions = MarkoViteOptions;\n',
-        );
-      }
-      return data;
-    }
-    case "packages/core/src/adapter/middleware.ts": {
-      data = data.replace(
-        'import type { Fetch, Platform } from "../runtime";',
-        'import type { Fetch, Platform } from "@marko/run";',
-      );
-
-      if (!data.includes("var __marko_run_dev__")) {
-        data = data.replace(
-          'import type { Fetch, Platform } from "@marko/run";\n',
-          'import type { Fetch, Platform } from "@marko/run";\n\ndeclare global {\n  var __marko_run_dev__:\n    | {\n        onClient(response: ServerResponse, cb: (ws: WebSocket) => void): void;\n      }\n    | undefined;\n}\n',
-        );
-      }
-      return data;
-    }
+    // Note: core/src/types.ts carries local modifications (Vite-shaped hooks
+    // removed from the Adapter interface) that must be re-applied after a sync.
     case "packages/adapter-node/src/index.ts": {
       return data
         .replace(
@@ -240,7 +216,7 @@ function applyLocalTransforms(target, data) {
       return data
         .replace(
           'import type {\n  Adapter,\n  AdapterConfig,\n  Options as MarkoRunOptions,\n  Route,\n} from "@marko/run/vite";\nimport { getAvailablePort, loadEnv, spawnServer } from "@marko/run/vite";',
-          'import type {\n  Adapter,\n  AdapterConfig,\n  Options as MarkoRunOptions,\n  Route,\n} from "@markopack/core/vite/types";\nimport {\n  getAvailablePort,\n  loadEnv,\n  spawnServer,\n} from "@markopack/core/vite/utils/server";',
+          'import type {\n  Adapter,\n  AdapterConfig,\n  Options as MarkoRunOptions,\n  Route,\n} from "@markopack/core/types";\nimport {\n  getAvailablePort,\n  loadEnv,\n  spawnServer,\n} from "@markopack/core/utils/server";',
         );
     }
     case "packages/adapter-netlify/src/index.ts": {

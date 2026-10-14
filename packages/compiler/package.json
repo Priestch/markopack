@@ -41,8 +41,8 @@
     "build": "tsup"
   },
   "dependencies": {
-    "@marko/compiler": "^5.39.55",
-    "@marko/runtime-tags": "^6.0.145"
+    "@marko/compiler": "^5.42.11",
+    "@marko/runtime-tags": "^6.4.5"
   },
   "peerDependencies": {
     "@rspack/core": "^2.0.1",

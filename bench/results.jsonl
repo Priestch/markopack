@@ -1,0 +1,1 @@
+{"timestamp":"2026-10-14T15:42:18.447Z","git":{"sha":"713f686606f7673194d0d10c7fc6a88139367620","dirty":true},"node":"v22.14.0","results":{"marko-run-vite":{"name":"marko-run-vite","buildSeconds":0.91,"devReadyMs":604},"marko-run-rspack":{"name":"marko-run-rspack","buildSeconds":0.6,"devReadyMs":502,"devCompileMs":754}}}

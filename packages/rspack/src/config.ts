@@ -44,9 +44,28 @@ function markoRunRuntimeInternal(): string {
   return markoRunRuntimeInternalCache;
 }
 
+type VirtualModulesPluginInstance = InstanceType<
+  typeof rspack.experiments.VirtualModulesPlugin
+>;
+
+export interface CreateConfigsResult {
+  web: Configuration;
+  node: Configuration;
+  markoPlugin: MarkoRspackPlugin;
+  /**
+   * Per-side VirtualModulesPlugin instances (undefined when routes are
+   * disabled). Dev uses their writeModule() to push route re-walk results
+   * into both compilers — see watch-routes.ts.
+   */
+  virtualModulesPlugin: {
+    web: VirtualModulesPluginInstance | undefined;
+    node: VirtualModulesPluginInstance | undefined;
+  };
+}
+
 export function createConfigs(
   options: CreateConfigsOptions,
-): { web: Configuration; node: Configuration; markoPlugin: MarkoRspackPlugin } {
+): CreateConfigsResult {
   const { root, entry, outputDir, mode } = options;
   const routeResult = options.routeResult;
   const routesEnabled = !!routeResult;
@@ -74,26 +93,42 @@ export function createConfigs(
     tsConfig: tsConfigPath(root),
   };
 
-  const routePlugins = routesEnabled
-    ? [
-        new rspack.experiments.VirtualModulesPlugin(
-          Object.fromEntries(virtualModules),
-        ),
-        new rspack.NormalModuleReplacementPlugin(
-          /^virtual:marko-run\//,
-          (resource: any) => {
-            if (resource.request === "virtual:marko-run/runtime/internal") {
-              resource.request = markoRunRuntimeInternal();
-            } else {
-              resource.request = resource.request.replace(
-                "virtual:marko-run",
-                entryFilesDir,
-              );
-            }
-          },
-        ),
-      ]
-    : [];
+  // Each compiler gets its OWN VirtualModulesPlugin instance: apply()
+  // stores a single compiler reference on the plugin, so spreading one
+  // shared instance into both configs would leave writeModule() only ever
+  // invalidating whichever compiler applied last (the node one).
+  const webVirtualModules = routesEnabled
+    ? new rspack.experiments.VirtualModulesPlugin(
+        Object.fromEntries(virtualModules),
+      )
+    : undefined;
+  const nodeVirtualModules = routesEnabled
+    ? new rspack.experiments.VirtualModulesPlugin(
+        Object.fromEntries(virtualModules),
+      )
+    : undefined;
+
+  const routePlugins = (
+    virtualModulesPlugin: VirtualModulesPluginInstance | undefined,
+  ) =>
+    virtualModulesPlugin
+      ? [
+          virtualModulesPlugin,
+          new rspack.NormalModuleReplacementPlugin(
+            /^virtual:marko-run\//,
+            (resource: any) => {
+              if (resource.request === "virtual:marko-run/runtime/internal") {
+                resource.request = markoRunRuntimeInternal();
+              } else {
+                resource.request = resource.request.replace(
+                  "virtual:marko-run",
+                  entryFilesDir,
+                );
+              }
+            },
+          ),
+        ]
+      : [];
 
   const webEntry: Record<string, { import: string[] }> = {
     index: { import: [path.resolve(root, entry)] },
@@ -178,7 +213,7 @@ export function createConfigs(
       ],
     },
     plugins: [
-      ...routePlugins,
+      ...routePlugins(webVirtualModules),
       new rspack.DefinePlugin({
         "process.env.NODE_ENV": JSON.stringify(mode),
       }),
@@ -253,7 +288,7 @@ export function createConfigs(
       ],
     },
     plugins: [
-      ...routePlugins,
+      ...routePlugins(nodeVirtualModules),
       new rspack.DefinePlugin({
         "process.env.NODE_ENV": JSON.stringify(mode),
       }),
@@ -265,7 +300,12 @@ export function createConfigs(
     stats: "errors-warnings",
   };
 
-  return { web: webConfig, node: nodeConfig, markoPlugin };
+  return {
+    web: webConfig,
+    node: nodeConfig,
+    markoPlugin,
+    virtualModulesPlugin: { web: webVirtualModules, node: nodeVirtualModules },
+  };
 }
 
 function requireServerEntry(root: string, specified?: string): string {

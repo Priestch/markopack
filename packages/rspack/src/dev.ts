@@ -7,7 +7,13 @@ import pc from "picocolors";
 import { rspack } from "@rspack/core";
 import type { Compiler, MultiCompiler, MultiStats, Stats } from "@rspack/core";
 import type MarkoRspackPlugin from "@markopack/compiler";
+import type { Adapter } from "@markopack/core/types";
 import { buildLinkAssetsManifest } from "./link-assets.js";
+import {
+  watchRoutes,
+  type RoutesWatcher,
+  type VirtualModulesWriter,
+} from "./watch-routes.js";
 import type { MarkoRunRspackOptions, RouteBuildResult } from "./routes.js";
 
 const projectRequire = createRequire(import.meta.url);
@@ -24,6 +30,15 @@ export async function startDevServer(
     port: number;
     routes: boolean;
     routeResult?: RouteBuildResult;
+    /** Absolute routes directory (from the startup route build). */
+    routesDir?: string;
+    /** Same adapter the startup route build used. */
+    adapter?: Adapter | null;
+    /** Per-side VirtualModulesPlugin instances from createConfigs(). */
+    virtualModulesPlugin?: {
+      web?: VirtualModulesWriter;
+      node?: VirtualModulesWriter;
+    };
     trailingSlashes?: NonNullable<MarkoRunRspackOptions["trailingSlashes"]>;
     markoPlugin?: MarkoRspackPlugin;
   },
@@ -169,8 +184,30 @@ export async function startDevServer(
     }
   });
 
+  // Route discovery watch: started only after compiler.watch() so the
+  // compilers exist by the time writeModule() is called. Rspack's own
+  // watcher can't see route files that nothing imports yet — this is what
+  // makes new/deleted routes hot-discoverable in dev.
+  let routesWatcher: RoutesWatcher | null = null;
+  if (
+    opts.routes &&
+    opts.routesDir &&
+    fs.existsSync(opts.routesDir) &&
+    opts.routeResult
+  ) {
+    routesWatcher = watchRoutes({
+      root: opts.root,
+      routesDir: opts.routesDir,
+      trailingSlashes: opts.trailingSlashes ?? "RedirectWithout",
+      adapter: opts.adapter ?? null,
+      virtualModules: opts.routeResult.virtualModules,
+      plugins: opts.virtualModulesPlugin ?? {},
+    });
+  }
+
   return {
     async close() {
+      routesWatcher?.close();
       await new Promise<void>((resolve) => {
         compiler.watching?.close(() => resolve());
       });

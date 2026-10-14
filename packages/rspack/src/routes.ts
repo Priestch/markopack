@@ -136,6 +136,16 @@ function writeVirtualModule(
 ) {
   virtualModules.set(filepath, content);
   fs.mkdirSync(path.dirname(filepath), { recursive: true });
+  // NOTE: the on-disk file is only a *shadow* of VirtualModulesPlugin's
+  // in-memory virtual store (the compiler never reads it back); real
+  // invalidation must go through writeModule() — see watch-routes.ts.
+  // Write only when the content actually changed so dev re-walks don't
+  // churn mtimes for every generated file.
+  try {
+    if (fs.readFileSync(filepath, "utf-8") === content) return;
+  } catch {
+    // file doesn't exist yet — fall through and create it
+  }
   fs.writeFileSync(filepath, content);
 }
 

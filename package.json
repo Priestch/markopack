@@ -21,7 +21,8 @@
     "version": "changeset version",
     "release": "npm run build && changeset publish",
     "test:contract": "npm run -s build -w @markopack/core && npm run -s build -w @markopack/rspack && node scripts/test-match-contract.mjs",
-    "test:adapters": "npm run -s build && node scripts/test-adapters.mjs"
+    "test:adapters": "npm run -s build && node scripts/test-adapters.mjs",
+    "test:dev-watch": "npm run -s build -w @markopack/core && npm run -s build -w @markopack/compiler && npm run -s build -w @markopack/rspack && node scripts/test-dev-watch.mjs"
   },
   "devDependencies": {
     "@changesets/cli": "^2.29.4",

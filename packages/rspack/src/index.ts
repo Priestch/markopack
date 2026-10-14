@@ -158,7 +158,7 @@ export async function dev(options: RspackOptions = {}): Promise<DevServer> {
 
   const routeResult = await buildRoutes(options, root, false);
 
-  const { web, node, markoPlugin } = createConfigs({
+  const { web, node, markoPlugin, virtualModulesPlugin } = createConfigs({
     root,
     entry,
     outputDir,
@@ -179,6 +179,11 @@ export async function dev(options: RspackOptions = {}): Promise<DevServer> {
     port,
     routes: options.routes !== false,
     routeResult,
+    routesDir: routeResult
+      ? path.resolve(root, options.routesDir || "src/routes")
+      : undefined,
+    adapter: options.adapter ?? null,
+    virtualModulesPlugin,
     trailingSlashes: options.trailingSlashes || "RedirectWithout",
     markoPlugin,
   });

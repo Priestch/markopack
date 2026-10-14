@@ -47,6 +47,7 @@ MARKO_RUN_REPO=https://github.com/marko-js/run.git MARKO_RUN_REF=<sha> npm run s
 - `utils/server.ts` — trimmed to the subset markopack's adapters use (`loadEnv`, `spawnServer`, `getAvailablePort`); the cluster-mode machinery was dropped.
 - `adapter-node/src/ensure-runtime.ts` — trimmed to the production passthrough; the upstream Vite dev-server bootstrap can't run under markopack, which drives dev itself.
 - Vite-shaped hooks — the vendored `Adapter` interface no longer has `plugins`/`viteConfig`, and no package depends on `vite` or `@marko/vite`. After syncing `core/src/types.ts` these local modifications must be re-applied.
+- `adapter-static/src/crawler.ts` — carries a local fix upstream doesn't have (as of @marko/run-adapter-static 2.0.10): a bounded worker pool (100 concurrent visits) replaces the `Promise.all` promise-wave loop, the start queue is deduplicated before seeding, and the first visit error propagates after in-flight visits settle. Without the cap, peak memory scales quadratically on nav-heavy sites and static builds OOM past ~2500 routes. After syncing this file the fix must be re-applied — `npm run test:crawler` guards it. The file also awaits `finished(pageWriter)` in `visit()` to match upstream 2.0.10 (the vendored copy had drifted from an older ref, letting `crawl()` resolve while page files were still flushing). Upstream report is pending a decision.
 
 ## After Sync
 
@@ -55,6 +56,7 @@ Run:
 ```bash
 npm run verify:example
 npm run test:contract
+npm run test:crawler
 ```
 
 `test:contract` is the one that catches codegen/runtime drift (e.g. a new field the runtime reads off match objects) — run it first after any sync.

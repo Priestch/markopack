@@ -60,8 +60,58 @@ export default function createCrawler(
   const notFoundPath =
     opts.notFoundPath && resolvePath(opts.notFoundPath, origin)!;
   let seen: Set<string>;
-  let queue: Promise<VisitResult>[];
-  let pending: Promise<any> | undefined;
+  let pending: Promise<void> | undefined;
+  // Local fix — diverged from upstream @marko/run-adapter-static (see
+  // UPSTREAM_SYNC.md). Upstream fires every queued path at once —
+  // `startPaths.map(visit)` plus every link discovered mid-flight — with no
+  // concurrency cap, so peak memory scales with concurrent visits ×
+  // per-render cost: quadratic on nav-heavy sites (every page linking every
+  // page), OOM-ing past a few thousand routes. The start queue is also not
+  // deduplicated (`seen` only guards link discovery), so overlapping entries
+  // each spawn their own visit. Here the promise-wave queue becomes a path
+  // queue drained by MAX_CONCURRENT_VISITS workers.
+  const MAX_CONCURRENT_VISITS = 100;
+  let nextPaths: string[] = [];
+  let active = 0;
+  let firstError: unknown;
+  let idle: (() => void) | undefined;
+  let collected: VisitResult[] = [];
+
+  function scheduleVisit(path: string) {
+    if (!seen.has(path)) {
+      seen.add(path);
+      nextPaths.push(path);
+    }
+  }
+
+  function pump() {
+    while (
+      firstError === undefined &&
+      active < MAX_CONCURRENT_VISITS &&
+      nextPaths.length > 0
+    ) {
+      const path = nextPaths.shift()!;
+      active++;
+      visit(path)
+        .then(
+          (result) => {
+            collected.push(result);
+          },
+          (err: unknown) => {
+            firstError ??= err;
+          },
+        )
+        .then(() => {
+          active--;
+          pump();
+          if (idle) {
+            const wake = idle;
+            idle = undefined;
+            wake();
+          }
+        });
+    }
+  }
 
   async function visit(path: string): Promise<VisitResult> {
     const url = new URL(path, origin);
@@ -72,9 +122,8 @@ export default function createCrawler(
         // /docs/reference/language is /docs/reference/sibling, not /sibling.
         const found = href && resolvePath(href, url);
 
-        if (found !== undefined && !seen.has(found)) {
-          seen.add(found);
-          queue.push(visit(found));
+        if (found !== undefined) {
+          scheduleVisit(found);
         }
       },
     });
@@ -131,9 +180,8 @@ export default function createCrawler(
 
           if (redirect) {
             const redirectPath = resolvePath(location, url);
-            if (redirectPath && !seen.has(redirectPath)) {
-              seen.add(redirectPath);
-              queue.push(visit(redirectPath));
+            if (redirectPath) {
+              scheduleVisit(redirectPath);
             }
           } else {
             redirect = location;
@@ -183,12 +231,20 @@ export default function createCrawler(
         await pending;
       }
 
-      const startPaths = paths
-        .map((path) => resolvePath(path, origin))
-        .concat(notFoundPath)
-        .filter(Boolean) as string[];
+      const startPaths = [
+        ...new Set(
+          paths
+            .map((path) => resolvePath(path, origin))
+            .concat(notFoundPath)
+            .filter(Boolean) as string[],
+        ),
+      ];
 
       seen = new Set(startPaths);
+      nextPaths = [...startPaths];
+      active = 0;
+      firstError = undefined;
+      collected = [];
 
       const results: CrawlResults = {
         success: [],
@@ -198,50 +254,60 @@ export default function createCrawler(
         records: [],
       };
       try {
-        queue = startPaths.map(visit);
-
-        while (queue.length) {
-          pending = Promise.all(queue);
-          queue = [];
-          // Bucketed one at a time: spreading a wave into `push` would cap a
-          // wave's paths at the engine's argument limit.
-          for (const result of await pending) {
-            const { ok, status, path } = result;
-            // The 404 page is seeded by the crawl and answers 404 by design, so
-            // it prerendered like any other page rather than pointing nowhere.
-            const seeded404 =
-              status === 404 &&
-              !!notFoundPath &&
-              withoutTrailingSlash(path) === withoutTrailingSlash(notFoundPath);
-
-            if (!ok) {
-              results.failure.push(result);
-            } else if (status >= 300 && status < 400) {
-              results.redirect.push(result);
-            } else if (status === 404 && !seeded404) {
-              results.notFound.push(result);
-            } else {
-              results.success.push(result);
-            }
-
-            switch (status) {
-              case 200:
-              case 301:
-              case 302:
-              case 307:
-              case 308:
-                break;
-              default:
-                // Worth eyes even when nothing failed: a 404 is nearly always a
-                // link to a page that is gone, and other statuses wrote no file.
-                if (!seeded404) {
-                  results.records.push(result);
-                }
-            }
+        pending = (async () => {
+          pump();
+          while (
+            firstError !== undefined
+              ? active > 0
+              : active > 0 || nextPaths.length > 0
+          ) {
+            await new Promise<void>((resolve) => {
+              idle = resolve;
+            });
           }
-        }
+          if (firstError !== undefined) {
+            throw firstError;
+          }
+        })();
+        await pending;
       } finally {
         pending = undefined;
+      }
+
+      // Bucketed one at a time after the drain, in visit-completion order.
+      for (const result of collected) {
+        const { ok, status, path } = result;
+        // The 404 page is seeded by the crawl and answers 404 by design, so
+        // it prerendered like any other page rather than pointing nowhere.
+        const seeded404 =
+          status === 404 &&
+          !!notFoundPath &&
+          withoutTrailingSlash(path) === withoutTrailingSlash(notFoundPath);
+
+        if (!ok) {
+          results.failure.push(result);
+        } else if (status >= 300 && status < 400) {
+          results.redirect.push(result);
+        } else if (status === 404 && !seeded404) {
+          results.notFound.push(result);
+        } else {
+          results.success.push(result);
+        }
+
+        switch (status) {
+          case 200:
+          case 301:
+          case 302:
+          case 307:
+          case 308:
+            break;
+          default:
+            // Worth eyes even when nothing failed: a 404 is nearly always a
+            // link to a page that is gone, and other statuses wrote no file.
+            if (!seeded404) {
+              results.records.push(result);
+            }
+        }
       }
 
       const { success, redirect, notFound, failure, records } = results;

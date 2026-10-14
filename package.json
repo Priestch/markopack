@@ -22,7 +22,8 @@
     "release": "npm run build && changeset publish",
     "test:contract": "npm run -s build -w @markopack/core && npm run -s build -w @markopack/rspack && node scripts/test-match-contract.mjs",
     "test:adapters": "npm run -s build && node scripts/test-adapters.mjs",
-    "test:dev-watch": "npm run -s build -w @markopack/core && npm run -s build -w @markopack/compiler && npm run -s build -w @markopack/rspack && node scripts/test-dev-watch.mjs"
+    "test:dev-watch": "npm run -s build -w @markopack/core && npm run -s build -w @markopack/compiler && npm run -s build -w @markopack/rspack && node scripts/test-dev-watch.mjs",
+    "test:crawler": "npm run -s build -w @markopack/adapter-static && node scripts/test-crawler.mjs"
   },
   "devDependencies": {
     "@changesets/cli": "^2.29.4",

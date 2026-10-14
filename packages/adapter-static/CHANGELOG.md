@@ -1,5 +1,13 @@
 # @markopack/adapter-static
 
+## 0.2.0
+
+### Patch Changes
+
+- Updated dependencies [77c3491]
+- Updated dependencies [77c3491]
+  - @markopack/core@0.2.0
+
 ## 0.1.5
 
 ### Patch Changes

@@ -1,5 +1,14 @@
 # @markopack/adapter-node
 
+## 0.2.0
+
+### Patch Changes
+
+- 77c3491: Remove the last Vite dependencies: `@markopack/core`'s `vite/*` subpath exports are renamed (`@markopack/core/vite/types` → `@markopack/core/types`, etc.), the `Adapter` interface drops the Vite-shaped `plugins`/`viteConfig` hooks, and no markopack package depends on `vite` or `@marko/vite` anymore.
+- Updated dependencies [77c3491]
+- Updated dependencies [77c3491]
+  - @markopack/core@0.2.0
+
 ## 0.1.5
 
 ### Patch Changes

@@ -196,18 +196,17 @@ async function copyIfChanged(fromAbs, toAbs, write) {
 
 function applyLocalTransforms(target, data) {
   switch (target) {
-    // Upstream 18ae9fe makes builder always emit a templateFilePath, but the
-    // vendored codegen (pre-18ae9fe) only consumes it when layouts exist.
-    // Keep the conditional until core's codegen is synced; drop this case then.
-    case "packages/core/src/routes/builder.ts": {
+    // markopack: page imports carry a ?server-entry query so marko-loader
+    // compiles entries with entry:"page" + linkAssets instrumentation.
+    case "packages/core/src/codegen/index.ts": {
       return data
         .replace(
-          'templateFilePath: path.join(outDir, `${type}.marko`),',
-          'templateFilePath: currentLayouts.size\n                ? path.join(outDir, `${type}.marko`)\n                : undefined,',
+          '`import page from "${normalizedRelativePath(rootDir, route.templateFilePath!)}";`,',
+          '`import page from "${normalizedRelativePath(rootDir, route.templateFilePath!)}?server-entry";`,',
         )
         .replace(
-          'templateFilePath: page && path.join(outDir, key + ".marko"),',
-          'templateFilePath:\n            page && currentLayouts.size\n              ? path.join(outDir, key + ".marko")\n              : undefined,',
+          '`import page${route.key} from "${normalizedRelativePath(rootDir, route.templateFilePath!)}";`,',
+          '`import page${route.key} from "${normalizedRelativePath(rootDir, route.templateFilePath!)}?server-entry";`,',
         );
     }
     // Note: core/src/types.ts carries local modifications (Vite-shaped hooks

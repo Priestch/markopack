@@ -196,6 +196,40 @@ async function copyIfChanged(fromAbs, toAbs, write) {
 
 function applyLocalTransforms(target, data) {
   switch (target) {
+    // markopack: strip Vite-only surface from the vendored types — the
+    // Adapter interface loses its vite/plugins hooks (markopack never invokes
+    // them), and the two config fields loosen to stub types.
+    case "packages/core/src/types.ts": {
+      return data
+        .replace(
+          'import type { Options as MarkoViteOptions } from "@marko/vite";\nimport type { InlineConfig, Plugin, ResolvedConfig, UserConfig } from "vite";\n\n',
+          "",
+        )
+        .replace(
+          '  plugins?(event: {\n    root: string;\n    command: "dev" | "build";\n  }): Promise<Plugin[] | undefined> | Plugin[] | undefined;\n',
+          "",
+        )
+        .replace(
+          '  viteConfig?(config: UserConfig): Promise<UserConfig> | UserConfig | undefined;\n',
+          "",
+        )
+        .replace(
+          '    config: InlineConfig;',
+          '    // `config` was a Vite `InlineConfig` upstream. markopack never invokes this\n' +
+            '    // hook (its dev server is driven by @markopack/rspack), and adapters only\n' +
+            '    // pass the event through, so it stays loosely typed.\n' +
+            '    config: any;',
+        )
+        .replace(
+          '    config: ResolvedConfig;',
+          '    // Was a Vite `ResolvedConfig` upstream; markopack passes a stub.\n' +
+            '    config: unknown;',
+        )
+        .replace(
+          'export type Options = MarkoRunOptions & MarkoViteOptions;',
+          'export type Options = MarkoRunOptions;',
+        );
+    }
     // markopack: page imports carry a ?server-entry query so marko-loader
     // compiles entries with entry:"page" + linkAssets instrumentation.
     case "packages/core/src/codegen/index.ts": {
@@ -213,30 +247,88 @@ function applyLocalTransforms(target, data) {
     // removed from the Adapter interface) that must be re-applied after a sync.
     case "packages/adapter-node/src/index.ts": {
       return data
+        .replace('import { mergeConfig } from "vite";\n', "")
         .replace(
           'export type { NodePlatformInfo } from "@marko/run/adapter";',
           'export type { NodePlatformInfo } from "@markopack/core/adapter/middleware";',
+        )
+        .replace(
+          /    async viteConfig\(config\) \{[\s\S]*?\n    \},\n/,
+          // Vite-only hook (ssr.noExternal dedupe) — rspack resolves this itself.
+          "",
         )
         .replace(/@marko\\\/run-adapter-node/g, "@markopack\\/adapter-node")
         .replace(/'@marko\/run-adapter-node'/g, "'@markopack/adapter-node'");
     }
     case "packages/adapter-node/src/middleware.ts": {
-      return data.replace(
-        'from "@marko/run/adapter/middleware";',
-        'from "@markopack/core/adapter/middleware";',
-      );
+      return data
+        .replace(
+          'from "@marko/run/adapter/middleware";',
+          'from "@markopack/core/adapter/middleware";',
+        )
+        .replace(
+          'import ensureRuntime from "./ensure-runtime";',
+          'import ensureRuntime from "./ensure-runtime.js";',
+        );
     }
     case "packages/adapter-static/src/index.ts": {
       return data
         .replace(
           'import type {\n  Adapter,\n  AdapterConfig,\n  Options as MarkoRunOptions,\n  Route,\n} from "@marko/run/vite";\nimport { getAvailablePort, loadEnv, spawnServer } from "@marko/run/vite";',
           'import type {\n  Adapter,\n  AdapterConfig,\n  Options as MarkoRunOptions,\n  Route,\n} from "@markopack/core/types";\nimport {\n  getAvailablePort,\n  loadEnv,\n  spawnServer,\n} from "@markopack/core/utils/server";',
+        )
+        .replace(
+          'import createCrawler from "./crawler";',
+          'import createCrawler from "./crawler.js";',
+        )
+        .replace(
+          '        const fetch: Fetch = (await import(pathToFileURL(builtEntries[0]).href))\n          .fetch;',
+          // markopack: the server bundle is CommonJS — a default export wraps
+          // the namespace, so probe both shapes. Before importing, clean the
+          // crawl output dir and merge the sibling client bundle's assets in
+          // (crawled HTML references /static/... that otherwise 404s).
+          '        const outDir = path.join(path.dirname(builtEntries[0]), "public");\n\n' +
+            '        // A previous build may have left stale pages/assets here — crawled\n' +
+            '        // pages own this directory, so start from clean. Without this,\n' +
+            '        // deleted routes and old hashed assets survive rebuilds (and mask\n' +
+            '        // regressions when tests reuse the output dir).\n' +
+            '        await fs.rm(outDir, { recursive: true, force: true });\n\n' +
+            '        // Browser assets are emitted to the sibling `client` directory while\n' +
+            '        // crawled pages land in `public` — merge the two so referenced\n' +
+            '        // /static/... assets resolve. The fallback index.html from the client\n' +
+            '        // build is skipped: crawled pages own the HTML.\n' +
+            '        const clientDir = path.join(path.dirname(builtEntries[0]), "..", "client");\n' +
+            '        await fs\n' +
+            '          .cp(clientDir, outDir, {\n' +
+            '            recursive: true,\n' +
+            '            filter: (src) => path.basename(src) !== "index.html",\n' +
+            '          })\n' +
+            '          .catch(() => {});\n\n' +
+            '        const mod = await import(pathToFileURL(builtEntries[0]).href);\n' +
+            '        const fetch: Fetch = mod.fetch || mod.default?.fetch;',
+        )
+        .replace(
+          'out: path.join(path.dirname(builtEntries[0]), "public"),',
+          'out: outDir,',
+        );
+    }
+    case "packages/adapter-netlify/src/default-edge-entry.ts": {
+      return data.replace(
+          '  path: "/*",\n  // Skips Vite\'s default assets dir; a custom `build.assetsDir` still serves\n  // correctly via `context.next()`, it just doesn\'t get this shortcut.\n  excludedPath: ["/assets/*"],',
+          // markopack: browser assets live under /static (Rspack output), so
+          // those skip the edge function; anything else falls through.
+          '  path: "/*",\n  // markopack: browser assets live under /static (Rspack output), so those\n  // skip the edge function; anything else falls through to context.next().\n  excludedPath: ["/static/*"],',
         );
     }
     case "packages/adapter-netlify/src/index.ts": {
       return data
         .replace(/'@marko\/run-adapter-netlify'/g, "'@markopack/adapter-netlify'")
-        .replace(/@marko\\\/run-adapter-netlify/g, "@markopack\\/adapter-netlify");
+        .replace(/@marko\\\/run-adapter-netlify/g, "@markopack\\/adapter-netlify")
+        .replace(
+          /    viteConfig\(config\) \{[\s\S]*?\n    \},\n\n/,
+          // Vite-only hook (ssr target/conditions) — rspack config sets this.
+          "",
+        );
     }
     default:
       return data;

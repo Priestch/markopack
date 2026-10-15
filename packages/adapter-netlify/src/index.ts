@@ -1,4 +1,7 @@
-import baseAdapter, { type Adapter } from "@marko/run/adapter";
+import baseAdapter, {
+  type Adapter,
+  closeSpawnedProcess,
+} from "@marko/run/adapter";
 import { execSync, spawn } from "child_process";
 import path from "path";
 import { fileURLToPath } from "url";
@@ -54,12 +57,15 @@ export default function netlifyAdapter(options: Options = {}): Adapter {
 
       args.push(...parseNetlifyArgs(previewOptions.args));
 
-      const proc = spawn("netlify", args, {
+      // Join the command and args into a single string rather than passing an
+      // args array alongside `shell: true`, which Node deprecates (DEP0190).
+      const proc = spawn(["netlify", ...args].join(" "), {
         cwd,
         env: options.edge
           ? { ...process.env, DENO_TLS_CA_STORE: "mozilla,system" }
           : process.env,
         shell: true,
+        detached: process.platform !== "win32",
       });
 
       if (process.env.NODE_ENV !== "test") {
@@ -70,8 +76,7 @@ export default function netlifyAdapter(options: Options = {}): Adapter {
       return {
         port,
         close() {
-          proc.unref();
-          proc.kill();
+          return closeSpawnedProcess(proc);
         },
       };
     },

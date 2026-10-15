@@ -34,11 +34,11 @@ export interface Adapter {
   configure?(config: AdapterConfig): void;
   pluginOptions?(options: Options): Promise<Options> | Options | undefined;
   getEntryFile?(): Promise<string> | string;
-  // `config` was a Vite `InlineConfig` upstream. markopack never invokes this
-  // hook (its dev server is driven by @markopack/rspack), and adapters only
-  // pass the event through, so it stays loosely typed.
   startDev?(event: {
     entry: string | undefined;
+    // `config` was a Vite `InlineConfig` upstream. markopack never invokes this
+    // hook (its dev server is driven by @markopack/rspack), and adapters only
+    // pass the event through, so it stays loosely typed.
     config: any;
     options: StartDevOptions;
   }): Promise<SpawnedServer> | SpawnedServer;

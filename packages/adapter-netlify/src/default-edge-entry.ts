@@ -10,5 +10,8 @@ export default async function (request: Request, context: Context) {
 }
 
 export const config: Config = {
-  pattern: "^[^.]*$",
+  path: "/*",
+  // markopack: browser assets live under /static (Rspack output), so those
+  // skip the edge function; anything else falls through to context.next().
+  excludedPath: ["/static/*"],
 };

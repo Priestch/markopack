@@ -1,7 +1,7 @@
 // Trimmed from the vendored @marko/run source to just what markopack's
-// adapters use (loadEnv, spawnServer, getAvailablePort). The cluster-mode
-// machinery (spawnServerWorker, waitForWorker) and inspect-args parsing
-// were dropped. No longer kept in sync with upstream.
+// adapters use (loadEnv, spawnServer, getAvailablePort, closeSpawnedProcess).
+// The cluster-mode machinery (spawnServerWorker, waitForWorker) and
+// inspect-args parsing were dropped. No longer kept in sync with upstream.
 import cp, { type ChildProcess, type StdioOptions } from "child_process";
 import { config, parse } from "dotenv";
 import fs from "fs";
@@ -67,6 +67,33 @@ export async function spawnServer(
     port,
     close,
   };
+}
+
+// Tree-killing close for shell-spawned processes (e.g. `netlify dev`):
+// unlike spawnServer's plain `proc.kill()`, this signals the whole process
+// group so children of the shell don't survive.
+export async function closeSpawnedProcess(proc: ChildProcess) {
+  proc.unref();
+  killTree(proc, "SIGTERM");
+  if (await waitForExit(proc, 500) === null) {
+    killTree(proc, "SIGKILL");
+  }
+}
+
+function killTree(proc: ChildProcess, signal: NodeJS.Signals) {
+  if (!proc.pid || proc.exitCode !== null || proc.signalCode) return;
+
+  if (process.platform === "win32") {
+    cp.spawnSync("taskkill", ["/pid", `${proc.pid}`, "/T", "/F"], {
+      windowsHide: true,
+    });
+  } else {
+    try {
+      process.kill(-proc.pid, signal);
+    } catch {
+      proc.kill(signal);
+    }
+  }
 }
 
 async function waitForExit(proc: ChildProcess, wait: number = 0) {

@@ -24,6 +24,7 @@
     "build": "tsc -p tsconfig.json"
   },
   "dependencies": {
+    "@markopack/core": "^0.2.1",
     "@netlify/edge-functions": "^2.11.1",
     "@netlify/functions": "^3.0.4"
   },

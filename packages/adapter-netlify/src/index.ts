@@ -1,7 +1,5 @@
-import baseAdapter, {
-  type Adapter,
-  closeSpawnedProcess,
-} from "@marko/run/adapter";
+import type { Adapter } from "@markopack/core/types";
+import { closeSpawnedProcess } from "@markopack/core/utils/server";
 import { execSync, spawn } from "child_process";
 import path from "path";
 import { fileURLToPath } from "url";
@@ -20,20 +18,12 @@ export interface Options {
 }
 
 export default function netlifyAdapter(options: Options = {}): Adapter {
-  const { startDev } = baseAdapter();
   const defaultEntry = options.edge ? defaultEdgeEntry : defaultFunctionsEntry;
   return {
     name: "netlify-adapter",
 
     getEntryFile() {
       return defaultEntry;
-    },
-
-    startDev(event) {
-      return startDev!({
-        ...event,
-        entry: event.entry === defaultEntry ? undefined : event.entry,
-      });
     },
 
     async startPreview({ options: previewOptions }) {

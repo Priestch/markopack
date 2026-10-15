@@ -1,5 +1,4 @@
 import type { Fetch } from "@marko/run";
-import baseAdapter from "@marko/run/adapter";
 import type {
   Adapter,
   AdapterConfig,
@@ -54,7 +53,6 @@ export interface Options {
 }
 
 export default function staticAdapter(options: Options = {}): Adapter {
-  const { startDev } = baseAdapter();
   let adapterConfig!: AdapterConfig;
   let markoRunOptions: MarkoRunOptions;
   return {
@@ -70,13 +68,6 @@ export default function staticAdapter(options: Options = {}): Adapter {
 
     getEntryFile() {
       return defaultEntry;
-    },
-
-    startDev(event) {
-      return startDev!({
-        ...event,
-        entry: event.entry === defaultEntry ? undefined : event.entry,
-      });
     },
 
     startPreview({ options }) {

@@ -1,10 +1,8 @@
-import baseAdapter, { type Adapter } from "@marko/run/adapter";
+import type { Adapter } from "@markopack/core/types";
 export type { NodePlatformInfo } from "@markopack/core/adapter/middleware";
 
 export default function (): Adapter {
-  const base = baseAdapter();
   return {
-    ...base,
     name: "node-adapter",
     typeInfo(writer) {
       writer(`import type { NodePlatformInfo } from '@markopack/adapter-node'`);

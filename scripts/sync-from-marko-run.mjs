@@ -249,6 +249,14 @@ function applyLocalTransforms(target, data) {
       return data
         .replace('import { mergeConfig } from "vite";\n', "")
         .replace(
+          'import baseAdapter, { type Adapter } from "@marko/run/adapter";',
+          // markopack: nothing from the base adapter is reachable here — its
+          // module graph drags in Vite, startDev would boot a Vite dev server
+          // (markopack drives dev itself via Rspack), and this adapter has no
+          // buildEnd, so getEntryFile is never even queried.
+          'import type { Adapter } from "@markopack/core/types";',
+        )
+        .replace(
           'export type { NodePlatformInfo } from "@marko/run/adapter";',
           'export type { NodePlatformInfo } from "@markopack/core/adapter/middleware";',
         )
@@ -257,6 +265,8 @@ function applyLocalTransforms(target, data) {
           // Vite-only hook (ssr.noExternal dedupe) — rspack resolves this itself.
           "",
         )
+        .replace("  const base = baseAdapter();\n", "")
+        .replace("    ...base,\n", "")
         .replace(/@marko\\\/run-adapter-node/g, "@markopack\\/adapter-node")
         .replace(/'@marko\/run-adapter-node'/g, "'@markopack/adapter-node'");
     }
@@ -276,6 +286,15 @@ function applyLocalTransforms(target, data) {
         .replace(
           'import type {\n  Adapter,\n  AdapterConfig,\n  Options as MarkoRunOptions,\n  Route,\n} from "@marko/run/vite";\nimport { getAvailablePort, loadEnv, spawnServer } from "@marko/run/vite";',
           'import type {\n  Adapter,\n  AdapterConfig,\n  Options as MarkoRunOptions,\n  Route,\n} from "@markopack/core/types";\nimport {\n  getAvailablePort,\n  loadEnv,\n  spawnServer,\n} from "@markopack/core/utils/server";',
+        )
+        .replace('import baseAdapter from "@marko/run/adapter";\n', "")
+        .replace("  const { startDev } = baseAdapter();\n", "")
+        .replace(
+          "    startDev(event) {\n      return startDev!({\n        ...event,\n        entry: event.entry === defaultEntry ? undefined : event.entry,\n      });\n    },\n\n",
+          // markopack: startDev delegated to the upstream base adapter, which
+          // boots a Vite dev server — unreachable under markopack (dev is
+          // Rspack-driven via @markopack/rspack).
+          "",
         )
         .replace(
           'import createCrawler from "./crawler";',
@@ -322,6 +341,18 @@ function applyLocalTransforms(target, data) {
     }
     case "packages/adapter-netlify/src/index.ts": {
       return data
+        .replace(
+          'import baseAdapter, {\n  type Adapter,\n  closeSpawnedProcess,\n} from "@marko/run/adapter";',
+          // markopack: the base adapter's module graph drags in Vite and its
+          // startDev boots a Vite dev server — unreachable under markopack.
+          // closeSpawnedProcess comes from @markopack/core instead.
+          'import type { Adapter } from "@markopack/core/types";\nimport { closeSpawnedProcess } from "@markopack/core/utils/server";',
+        )
+        .replace("  const { startDev } = baseAdapter();\n", "")
+        .replace(
+          "    startDev(event) {\n      return startDev!({\n        ...event,\n        entry: event.entry === defaultEntry ? undefined : event.entry,\n      });\n    },\n\n",
+          "",
+        )
         .replace(/'@marko\/run-adapter-netlify'/g, "'@markopack/adapter-netlify'")
         .replace(/@marko\\\/run-adapter-netlify/g, "@markopack\\/adapter-netlify")
         .replace(

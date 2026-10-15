@@ -1,5 +1,30 @@
 # @markopack/adapter-static
 
+## 0.2.1
+
+### Patch Changes
+
+- 61e3204: Sync adapters with upstream @marko/run:
+
+  - adapter-static preview: the 404 page now really answers 404 — sirv's
+    `send` ends with an unconditional `writeHead(200)` that discarded the
+    status set from `setHeaders`; a `forceStatus` wrapper pins it
+  - adapter-netlify: preview process shutdown uses the runtime's
+    `closeSpawnedProcess` (SIGTERM → SIGKILL tree kill) instead of a bare
+    `kill()`; `spawn` no longer passes an args array alongside `shell: true`
+    (Node DEP0190); edge function config uses the declarative
+    `path`/`excludedPath` API, excluding `/static/*` (markopack's asset
+    prefix) instead of a dotted-path regex
+
+- bcf6fcd: Fix static exports missing browser assets: crawled pages now land in `public/`
+  alongside the client bundle's JS/CSS (previously `/static/...` references 404'd
+  on hydrated pages), stale files from earlier builds are cleaned before
+  crawling, and a route that fails to render now fails the build instead of
+  being silently left out. Crawler synced with upstream @marko/run (relative
+  link resolution, redirect handling, rel token matching).
+- Updated dependencies [f6043a3]
+  - @markopack/core@0.2.1
+
 ## 0.2.0
 
 ### Patch Changes

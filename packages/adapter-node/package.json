@@ -1,6 +1,6 @@
 {
   "name": "@markopack/adapter-node",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Node adapter for markopack",
   "type": "module",
   "main": "./dist/index.js",
@@ -28,7 +28,7 @@
     "build": "tsc -p tsconfig.json"
   },
   "dependencies": {
-    "@markopack/core": "^0.2.0"
+    "@markopack/core": "^0.2.1"
   },
   "peerDependencies": {
     "@marko/run": "^0.11.0"

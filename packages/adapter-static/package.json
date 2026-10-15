@@ -27,6 +27,7 @@
     "@markopack/core": "^0.2.0",
     "compression": "^1.8.0",
     "htmlparser2": "^10.0.0",
+    "kleur": "^4.1.5",
     "sirv": "^1.0.15",
     "undici": "^6.21.0"
   },

@@ -149,6 +149,26 @@ export default function staticAdapter(options: Options = {}): Adapter {
 
       if (sourceEntries[0] === defaultEntry) {
         envFile && (await loadEnv(envFile));
+        const outDir = path.join(path.dirname(builtEntries[0]), "public");
+
+        // A previous build may have left stale pages/assets here — crawled
+        // pages own this directory, so start from clean. Without this,
+        // deleted routes and old hashed assets survive rebuilds (and mask
+        // regressions when tests reuse the output dir).
+        await fs.rm(outDir, { recursive: true, force: true });
+
+        // Browser assets are emitted to the sibling `client` directory while
+        // crawled pages land in `public` — merge the two so referenced
+        // /static/... assets resolve. The fallback index.html from the client
+        // build is skipped: crawled pages own the HTML.
+        const clientDir = path.join(path.dirname(builtEntries[0]), "..", "client");
+        await fs
+          .cp(clientDir, outDir, {
+            recursive: true,
+            filter: (src) => path.basename(src) !== "index.html",
+          })
+          .catch(() => {});
+
         const mod = await import(pathToFileURL(builtEntries[0]).href);
         const fetch: Fetch = mod.fetch || mod.default?.fetch;
         const crawler = createCrawler(
@@ -157,7 +177,7 @@ export default function staticAdapter(options: Options = {}): Adapter {
             return response || new Response(null, { status: 404 });
           },
           {
-            out: path.join(path.dirname(builtEntries[0]), "public"),
+            out: outDir,
             notFoundPath: routes.special["404"]
               ? "404" + (trailingSlash ? "/" : "")
               : undefined,

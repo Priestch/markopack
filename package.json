@@ -20,7 +20,8 @@
     "test:routes": "npm run -s build -w @markopack/core && npm run -s build -w @markopack/rspack && node scripts/test-routes.mjs",
     "version": "changeset version",
     "release": "npm run build && changeset publish",
-    "test:contract": "npm run -s build -w @markopack/core && npm run -s build -w @markopack/rspack && node scripts/test-match-contract.mjs"
+    "test:contract": "npm run -s build -w @markopack/core && npm run -s build -w @markopack/rspack && node scripts/test-match-contract.mjs",
+    "test:adapters": "npm run -s build && node scripts/test-adapters.mjs"
   },
   "devDependencies": {
     "@changesets/cli": "^2.29.4",

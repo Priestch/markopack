@@ -25,3 +25,7 @@ jobs:
       - run: npm run verify:example
 
       - run: npm run test:routes
+
+      # `npm run build` above already produced dist/ for every workspace —
+      # run the adapter script directly to avoid a redundant full rebuild.
+      - run: node scripts/test-adapters.mjs

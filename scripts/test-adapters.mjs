@@ -63,6 +63,23 @@ async function testAdapter(name, adapterFn) {
       }
       walk(publicDir);
       console.log(`  ${label}: static files generated: ${files.length} (${files.slice(0, 5).join(", ")}${files.length > 5 ? "..." : ""})`);
+
+      // Every asset referenced by a crawled page must exist in public/
+      // (guards against the client bundle being emitted outside public/).
+      const referenced = new Set();
+      for (const file of files.filter((f) => f.endsWith(".html"))) {
+        const html = fs.readFileSync(path.join(publicDir, file), "utf8");
+        for (const m of html.matchAll(/(?:src|href)="(\/static\/[^"]+)"/g)) {
+          referenced.add(m[1]);
+        }
+      }
+      const missing = [...referenced].filter(
+        (ref) => !fs.existsSync(path.join(publicDir, ref.slice(1))),
+      );
+      if (missing.length) {
+        throw new Error(`static pages reference missing assets: ${missing.join(", ")}`);
+      }
+      console.log(`  ${label}: all ${referenced.size} referenced static assets present`);
     } else if (!serverExists || !clientExists) {
       throw new Error(`Missing output: server=${serverExists}, client=${clientExists}`);
     }

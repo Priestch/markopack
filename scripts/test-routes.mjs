@@ -25,6 +25,14 @@ const ROUTES = [
   { path: "/api/users", method: "GET", expect: { status: 200, json: { type: "api-users", users: [{ id: 1, name: "Ada" }, { id: 2, name: "Linus" }] } } },
   { path: "/", method: "POST", expect: { status: 201, contains: ["Created!"] } },
 
+  // Handler verb detection via export specifiers / TS annotations
+  // (scripts/test-routes.mjs — see detectHandlerVerbs in @markopack/rspack)
+  { path: "/api/aliased", method: "GET", expect: { status: 200, json: { type: "api-aliased", message: "Aliased exports" } } },
+  { path: "/api/aliased", method: "POST", expect: { status: 201, contains: ["Aliased POST"] } },
+  { path: "/api/typed", method: "GET", expect: { status: 200, json: { type: "api-typed", url: "/api/typed" } } },
+  // DELETE only "exists" inside a comment — must not be registered
+  { path: "/api/typed", method: "DELETE", expect: { status: 404 } },
+
   // Dynamic routes
   { path: "/blog/hello-world", method: "GET", expect: { status: 200, json: { type: "blog-post", params: { slug: "hello-world" }, message: "Dynamic segment route" } } },
   { path: "/products/books/42", method: "GET", expect: { status: 200, json: { type: "product", params: { category: "books", id: "42" }, message: "Nested dynamic segments route" } } },

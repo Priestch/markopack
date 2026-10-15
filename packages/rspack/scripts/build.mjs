@@ -15,6 +15,7 @@ await mkdir(distDir, { recursive: true });
 const external = [
   "@rspack/core",
   "@rspack/core/*",
+  "@babel/parser",
   "@marko/run",
   "@marko/run/*",
   "@marko/vite",

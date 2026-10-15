@@ -1,5 +1,6 @@
 import fs from "fs";
 import path from "path";
+import { parse } from "@babel/parser";
 
 import {
   renderMiddleware,
@@ -135,15 +136,17 @@ function writeVirtualModule(
 async function detectHandlerVerbs(filePath: string): Promise<HttpVerb[]> {
   try {
     const source = await fs.promises.readFile(filePath, "utf-8");
+    let exportedNames: string[];
+    try {
+      exportedNames = getExportIdentifiers(source);
+    } catch {
+      // Exotic syntax the parser rejects — fall back to the historical
+      // regex scan so such files keep the old (partial) detection.
+      exportedNames = scanExportIdentifiers(source);
+    }
     const verbs: HttpVerb[] = [];
     for (const verb of httpVerbs) {
-      const upper = verb.toUpperCase();
-      const patterns = [
-        new RegExp(`\\bexport\\s+function\\s+${upper}\\s*\\(`),
-        new RegExp(`\\bexport\\s+const\\s+${upper}\\s*=`),
-        new RegExp(`\\bexport\\s+async\\s+function\\s+${upper}\\s*\\(`),
-      ];
-      if (patterns.some((p) => p.test(source))) {
+      if (exportedNames.includes(verb.toUpperCase())) {
         verbs.push(verb);
       }
     }
@@ -151,6 +154,61 @@ async function detectHandlerVerbs(filePath: string): Promise<HttpVerb[]> {
   } catch {
     return [];
   }
+}
+
+// Mirrors upstream's getExportIdentifiers (@marko/run vite/utils/ast.ts):
+// collects named exports from function/variable declarations and from
+// export specifiers (`export { list as GET }`, `export { GET } from "..."`),
+// which a source-text scan can neither match reliably (TS annotations on
+// `export const GET: T = ...`) nor safely (verb names inside comments or
+// strings register routes whose imports then fail the build).
+function getExportIdentifiers(source: string): string[] {
+  const { program } = parse(source, {
+    sourceType: "module",
+    plugins: ["typescript", "topLevelAwait"],
+  });
+  const result: string[] = [];
+  for (const node of program.body as any[]) {
+    if (node.type !== "ExportNamedDeclaration") continue;
+    const { declaration, specifiers } = node;
+    if (declaration) {
+      if (declaration.type === "FunctionDeclaration" && declaration.id) {
+        result.push(declaration.id.name);
+      } else if (declaration.type === "VariableDeclaration") {
+        for (const declarator of declaration.declarations) {
+          if (declarator.id.type === "Identifier") {
+            result.push(declarator.id.name);
+          }
+        }
+      }
+    } else if (specifiers) {
+      for (const specifier of specifiers) {
+        if (
+          specifier.type === "ExportSpecifier" &&
+          specifier.exported.type === "Identifier"
+        ) {
+          result.push(specifier.exported.name);
+        }
+      }
+    }
+  }
+  return result;
+}
+
+function scanExportIdentifiers(source: string): string[] {
+  const names: string[] = [];
+  for (const verb of httpVerbs) {
+    const upper = verb.toUpperCase();
+    const patterns = [
+      new RegExp(`\\bexport\\s+function\\s+${upper}\\s*\\(`),
+      new RegExp(`\\bexport\\s+const\\s+${upper}\\s*=`),
+      new RegExp(`\\bexport\\s+async\\s+function\\s+${upper}\\s*\\(`),
+    ];
+    if (patterns.some((p) => p.test(source))) {
+      names.push(upper);
+    }
+  }
+  return names;
 }
 
 export interface MarkoRunRspackOptions {

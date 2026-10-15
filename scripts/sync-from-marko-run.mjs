@@ -87,6 +87,7 @@ const CORE_MAPPINGS = [
   ["packages/run/src/vite/codegen/writer.ts", "packages/core/src/codegen/writer.ts"],
   ["packages/run/src/vite/utils/fs.ts", "packages/core/src/utils/fs.ts"],
   ["packages/run/src/vite/utils/route.ts", "packages/core/src/utils/route.ts"],
+  ["packages/run/src/vite/utils/agent-fix-guide.ts", "packages/core/src/utils/agent-fix-guide.ts"],
   // utils/server.ts is no longer synced: trimmed to the subset markopack uses.
   // adapter/middleware.ts is no longer vendored: re-exported from
   // @marko/run/adapter/middleware (public export since 0.11).
@@ -195,6 +196,20 @@ async function copyIfChanged(fromAbs, toAbs, write) {
 
 function applyLocalTransforms(target, data) {
   switch (target) {
+    // Upstream 18ae9fe makes builder always emit a templateFilePath, but the
+    // vendored codegen (pre-18ae9fe) only consumes it when layouts exist.
+    // Keep the conditional until core's codegen is synced; drop this case then.
+    case "packages/core/src/routes/builder.ts": {
+      return data
+        .replace(
+          'templateFilePath: path.join(outDir, `${type}.marko`),',
+          'templateFilePath: currentLayouts.size\n                ? path.join(outDir, `${type}.marko`)\n                : undefined,',
+        )
+        .replace(
+          'templateFilePath: page && path.join(outDir, key + ".marko"),',
+          'templateFilePath:\n            page && currentLayouts.size\n              ? path.join(outDir, key + ".marko")\n              : undefined,',
+        );
+    }
     // Note: core/src/types.ts carries local modifications (Vite-shaped hooks
     // removed from the Adapter interface) that must be re-applied after a sync.
     case "packages/adapter-node/src/index.ts": {

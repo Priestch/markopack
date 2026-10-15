@@ -8,11 +8,13 @@ import type {
   Route,
   SpecialRoutes,
 } from "../types";
+import { agentRouteFixGuide } from "../utils/agent-fix-guide";
 import { parseFlatRoute } from "./parse";
 import VDir from "./vdir";
 import type { Walker, WalkOptions } from "./walk";
 
-const markoFiles = `(${RoutableFileTypes.Layout}|${RoutableFileTypes.Page}|${RoutableFileTypes.NotFound}|${RoutableFileTypes.Error})\\.(?:.*\\.)?(marko)`;
+const markoFileTypes = `${RoutableFileTypes.Layout}|${RoutableFileTypes.Page}|${RoutableFileTypes.NotFound}|${RoutableFileTypes.Error}`;
+const markoFiles = `(${markoFileTypes})\\.(?:.*\\.)?(marko)`;
 const nonMarkoFiles = `(${RoutableFileTypes.Middleware}|${RoutableFileTypes.Handler}|${RoutableFileTypes.Meta})\\.(?:.*\\.)?(.+)`;
 const RoutableFileRegex = new RegExp(
   `[+](?:${markoFiles}|${nonMarkoFiles})$`,
@@ -86,6 +88,7 @@ export async function buildRoutes(
       const { name } = file;
       const match = name.match(RoutableFileRegex);
       if (!match) {
+        warnNonRoutableLookalike(name, file.path);
         return;
       }
 
@@ -269,4 +272,44 @@ export async function buildRoutes(
 
 function replaceInvalidFilenameChars(str: string) {
   return str.replace(/[<>:"/\\|?*_]+/g, "-");
+}
+
+// @ebay/arc names adaptive variants `file[flag].ext` and brackets directories
+// too; stripped before classifying so `[` and `+` never read as route syntax.
+const bracketFlagReg = /\[[^\]]*\]/g;
+
+// Marko pulls colocated companions in through their template, so
+// `+page.style.css` beside `+page.marko` is expected rather than a broken route.
+const markoCompanionReg = new RegExp(
+  `[+](?:${markoFileTypes})\\.(?:style|component|component-browser|marko\\.d)\\.[^.]+$`,
+  "i",
+);
+
+function warnLookalike(message: string): void {
+  // The cheat-sheet pointer is agent-gated; humans just see the convention.
+  console.warn(`[marko-run] ${message}${agentRouteFixGuide()}`);
+}
+
+// Flags a file that looks like a botched route yet silently is not routable.
+// Brackets alone never qualify: they are arc's syntax, not Marko Run's.
+function warnNonRoutableLookalike(name: string, filePath: string): void {
+  // `+page[mobile].marko` is arc's variant of a real `+page.marko`, not a break.
+  const base = name.replace(bracketFlagReg, "");
+  if (RoutableFileRegex.test(base) || markoCompanionReg.test(base)) return;
+
+  const relativeFilePath = path.relative(process.cwd(), filePath);
+  if (base.includes("+")) {
+    const hint = /^\+server\./i.test(base)
+      ? "request handlers are named `+handler.<ext>`"
+      : "routable files are `+page.marko`, `+layout.marko`, `+handler.*`, `+middleware.*`, `+meta.*`, `+404.marko` and `+500.marko`";
+    warnLookalike(`${relativeFilePath} is not routable; ${hint}.`);
+  } else if (base[0] === "$") {
+    const stem = base.replace(/\.[^.]+$/, "");
+    const suggestion = /\.marko$/i.test(base)
+      ? `${stem}+page.marko`
+      : `${stem}+handler${base.slice(base.lastIndexOf("."))}`;
+    warnLookalike(
+      `${relativeFilePath} is not routable; route files need a \`+type\` suffix after their path segments, e.g. \`${suggestion}\`.`,
+    );
+  }
 }

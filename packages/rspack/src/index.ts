@@ -11,6 +11,7 @@ import { startDevServer, type DevServer } from "./dev.js";
 import MarkoRspackPlugin from "@markopack/compiler";
 
 export type { MarkoRunRspackOptions } from "./routes.js";
+export type { DevServer } from "./dev.js";
 
 export interface RspackOptions extends MarkoRunRspackOptions {
   root?: string;
@@ -105,7 +106,7 @@ export async function build(options: RspackOptions = {}): Promise<void> {
   const nodeConfig = customize(withMarkoPlugin(node, "server", markoPlugin), "server", options);
 
   const compiler = rspack([webConfig, nodeConfig]) as MultiCompiler;
-  markoPlugin.applyDependencies(compiler as Compiler, false);
+  markoPlugin.applyDependencies(compiler as unknown as Compiler, false);
 
   return new Promise<void>((resolve, reject) => {
     compiler.run((err, stats) => {
@@ -170,7 +171,7 @@ export async function dev(options: RspackOptions = {}): Promise<DevServer> {
   const nodeConfig = customize(withMarkoPlugin(node, "server", markoPlugin), "server", options);
 
   const compiler = rspack([webConfig, nodeConfig]) as MultiCompiler;
-  markoPlugin.applyDependencies(compiler as Compiler, true);
+  markoPlugin.applyDependencies(compiler as unknown as Compiler, true);
 
   return startDevServer(compiler, {
     root,

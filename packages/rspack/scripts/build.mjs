@@ -1,7 +1,8 @@
 import { build } from "esbuild";
-import { rm, mkdir, writeFile } from "fs/promises";
+import { rm, mkdir } from "fs/promises";
 import { resolve, dirname } from "path";
 import { fileURLToPath } from "url";
+import { execFileSync } from "child_process";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const rootDir = resolve(__dirname, "..");
@@ -39,25 +40,20 @@ await build({
   resolveExtensions: [".ts", ".js", ".mjs"],
 });
 
-// Generate declaration file
-const dts = `import type { Adapter, BuiltRoutes } from "@markopack/core/types";
-
-export interface RspackOptions {
-  root?: string;
-  entry?: string;
-  outputDir?: string;
-  routesDir?: string;
-  adapter?: Adapter | null;
-  trailingSlashes?: 'Ignore' | 'RedirectWithout' | 'RedirectWith' | 'RewriteWithout' | 'RewriteWith';
-  emitRoutes?: (routes: any[]) => void | Promise<void>;
-  debug?: boolean;
-  mode?: 'development' | 'production';
-  port?: number;
-}
-
-export function build(options?: RspackOptions): Promise<void>;
-export function dev(options?: RspackOptions): Promise<{ close(): Promise<void> }>;
-`;
-
-await writeFile(resolve(distDir, "index.d.ts"), dts);
+// Generate declaration files from source — the real exported surface
+// (RspackOptions gains the `rspack` config callback, `serverEntry`,
+// `routes` options; emitRoutes is typed with Route[]). esbuild strips types
+// without checking, so this also guards the sources against type errors.
+execFileSync(
+  process.execPath,
+  [
+    // tsc lives in the workspace root's node_modules
+    resolve(rootDir, "../../node_modules/typescript/bin/tsc"),
+    "-p",
+    resolve(rootDir, "tsconfig.json"),
+    "--emitDeclarationOnly",
+    "--declaration",
+  ],
+  { stdio: "inherit" },
+);
 console.log("Build completed successfully");

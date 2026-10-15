@@ -5,7 +5,7 @@ import http from "node:http";
 import { createRequire } from "node:module";
 import pc from "picocolors";
 import { rspack } from "@rspack/core";
-import type { Compiler, MultiCompiler, Stats } from "@rspack/core";
+import type { Compiler, MultiCompiler, MultiStats, Stats } from "@rspack/core";
 import type MarkoRspackPlugin from "@markopack/compiler";
 import { buildLinkAssetsManifest } from "./link-assets.js";
 import type { MarkoRunRspackOptions, RouteBuildResult } from "./routes.js";
@@ -27,7 +27,7 @@ export async function startDevServer(
     trailingSlashes?: NonNullable<MarkoRunRspackOptions["trailingSlashes"]>;
     markoPlugin?: MarkoRspackPlugin;
   },
-): DevServer {
+): Promise<DevServer> {
   const { outputDir, port } = opts;
   const clientDist = path.join(outputDir, "client");
   const serverDist = path.join(outputDir, "server");
@@ -145,21 +145,21 @@ export async function startDevServer(
     });
   }
 
-  compiler.watch({ aggregateTimeout: 100 }, (err: Error | null, stats: Stats | undefined) => {
+  compiler.watch({ aggregateTimeout: 100 }, (err: Error | null, multiStats: MultiStats | undefined) => {
     if (err) {
       console.error(pc.red("Watch error:"), err);
       return;
     }
 
-    if (stats) {
-      if (stats.hasErrors()) {
-        const info = stats.toJson({ all: false, errors: true });
+    if (multiStats) {
+      if (multiStats.hasErrors()) {
+        const info = multiStats.toJson({ all: false, errors: true });
         for (const e of (info.errors ?? [])) {
           console.error(pc.red(e.message));
         }
       } else {
         // MultiStats: sum child timings
-        const children = stats.stats ?? [];
+        const children = multiStats.stats ?? [];
         const elapsed = children.reduce(
           (sum: number, c: any) => sum + (c.endTime ?? 0) - (c.startTime ?? 0),
           0,

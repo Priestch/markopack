@@ -44,15 +44,6 @@ function markoRunRuntimeInternal(): string {
   return markoRunRuntimeInternalCache;
 }
 
-const markoLoaderPath = (() => {
-  // Resolve marko-loader from @markopack/compiler package
-  const loaderEntry = projectRequire.resolve(
-    "@markopack/compiler/marko-loader",
-  );
-  if (fs.existsSync(loaderEntry)) return loaderEntry;
-  throw new Error("Cannot find marko-loader from @markopack/compiler");
-})();
-
 export function createConfigs(
   options: CreateConfigsOptions,
 ): { web: Configuration; node: Configuration; markoPlugin: MarkoRspackPlugin } {
@@ -142,16 +133,6 @@ export function createConfigs(
     module: {
       rules: [
         {
-          test: /\.marko$/,
-          type: "javascript/auto",
-          use: [
-            {
-              loader: markoLoaderPath,
-              options: { output: "dom", sourceMaps: mode === "development" },
-            },
-          ],
-        },
-        {
           test: /\.[cm]?[jt]sx?$/,
           exclude: /node_modules/,
           type: "javascript/auto",
@@ -237,14 +218,9 @@ export function createConfigs(
     module: {
       rules: [
         {
-          test: /\.marko$/,
-          type: "javascript/auto",
-          use: [
-            {
-              loader: markoLoaderPath,
-              options: { output: "html", sourceMaps: mode === "development" },
-            },
-          ],
+          test: /\.(png|jpe?g|gif|svg|webp)$/i,
+          type: "asset",
+          generator: { filename: "static/media/[name].[hash:8][ext]" },
         },
         {
           test: /\.[cm]?[jt]sx?$/,

@@ -47,12 +47,18 @@ async function buildRoutes(
     return undefined;
   }
 
-  const routesDir = options.routesDir || "src/routes";
-  const trailingSlashes = options.trailingSlashes || "RedirectWithout";
   const adapter = options.adapter ?? null;
 
   adapter?.configure?.({ root, isBuild });
-  adapter?.pluginOptions?.(options as any);
+  // The adapter may return amended options — merge them back before any
+  // option is read, matching @marko/run's pluginOptions contract.
+  const adapterOptions = await adapter?.pluginOptions?.(options as any);
+  if (adapterOptions) {
+    Object.assign(options, adapterOptions);
+  }
+
+  const routesDir = options.routesDir || "src/routes";
+  const trailingSlashes = options.trailingSlashes || "RedirectWithout";
 
   const routeResult = await buildAndWriteRoutes(
     root,

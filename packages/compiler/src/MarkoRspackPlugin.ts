@@ -178,22 +178,21 @@ export default class MarkoRspackPlugin {
     compiler.options.module = compiler.options.module || { rules: [] };
     compiler.options.module.rules = compiler.options.module.rules || [];
 
-    compiler.options.module.rules.push(
-      {
-        test: /\.marko$/,
-        type: 'javascript/auto',
-        use: [
-          {
-            loader: loaderPath,
-            options: loaderOptions,
-          },
-        ],
-      },
-      {
-        test: /\.(jpg|jpeg|gif|png|svg)$/,
-        type: 'asset',
-      },
-    );
+    // The `.marko` rule lives only here: loaders/compiler options (and the
+    // ?server-entry / ?browser-entry query semantics) are owned by the
+    // plugin, so host configs must not mount a second rule — every matching
+    // rule runs, which would compile each file twice and let dead options
+    // shadow these.
+    compiler.options.module.rules.push({
+      test: /\.marko$/,
+      type: 'javascript/auto',
+      use: [
+        {
+          loader: loaderPath,
+          options: loaderOptions,
+        },
+      ],
+    });
   }
 
   private applyServer(compiler: CompilerType) {

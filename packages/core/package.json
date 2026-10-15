@@ -63,7 +63,7 @@
     "dotenv": "^16.4.7"
   },
   "devDependencies": {
-    "@marko/run": "^0.11.13",
+    "@marko/run": "^0.11.14",
     "@types/node": "^24.0.13"
   },
   "peerDependencies": {

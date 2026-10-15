@@ -44,7 +44,7 @@
     "marko": "5 - 6"
   },
   "devDependencies": {
-    "@marko/run": "^0.11.13",
+    "@marko/run": "^0.11.14",
     "@rspack/core": "^2.0.1",
     "@types/node": "^24.0.13",
     "esbuild": "^0.25.10",

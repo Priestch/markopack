@@ -21,6 +21,9 @@ npm run verify:example
 # Test route generation (builds core + rspack, then runs scripts/test-routes.mjs)
 npm run test:routes
 
+# Run adapter build tests (builds everything first)
+npm run test:adapters
+
 # Sync vendored code from upstream @marko/run
 npm run sync:marko-run          # apply
 npm run sync:marko-run:check    # dry-run
@@ -29,7 +32,7 @@ npm run sync:marko-run:check    # dry-run
 npm run bench:setup && npm run bench:perf
 ```
 
-There is no formal test suite — verification is done via `npm run verify:example` (smoke test), `npm run test:routes`, and `npm run test:contract` (asserts generated match objects against the installed `@marko/run` runtime — guards against upstream drift like the 0.11 `route.options` breakage).
+There is no formal test suite — verification is done via `npm run verify:example` (smoke test), `npm run test:routes`, `npm run test:adapters`, and `npm run test:contract` (asserts generated match objects against the installed `@marko/run` runtime — guards against upstream drift like the 0.11 `route.options` breakage).
 
 ## Architecture
 
@@ -43,13 +46,15 @@ There is no formal test suite — verification is done via `npm run verify:examp
 
 ### Packages
 
-- **`@markopack/core`** — Vendored route building, codegen, and middleware utilities adapted from `@marko/run`'s Vite internals. Built with `tsc`. Exports deeply nested sub-paths (e.g. `@markopack/core/vite/codegen`).
+- **`@markopack/core`** — Vendored route building, codegen, and middleware utilities adapted from `@marko/run`'s Vite internals. Built with `tsc`. Exports sub-paths such as `@markopack/core/codegen`, `@markopack/core/routes/builder`, and `@markopack/core/utils/server` (see `exports` in its package.json).
 
 - **`@markopack/compiler`** — `MarkoRspackPlugin` class and `marko-loader`. Coordinates browser/server manifest sync across a Rspack MultiCompiler. Built with `tsup` for dual ESM/CJS output.
 
 - **`@markopack/rspack`** — Public API: `build()` and `dev()` functions. Creates dual Rspack configs (web + node), handles route discovery and virtual module generation. Built with a custom `scripts/build.mjs`.
 
-- **Adapters** (`adapter-node`, `adapter-static`, `adapter-netlify`) — Platform-specific deployment adapters. Each implements the `Adapter` interface from `@markopack/core/vite/types`.
+- **Adapters** (`adapter-node`, `adapter-static`, `adapter-netlify`) — Platform-specific deployment adapters. Each implements the `Adapter` interface from `@markopack/core/types`.
+
+- **`create-markopack`** — Scaffolding CLI (`npm create markopack`). Generates a starter app with the chosen adapter, including a standalone `preview.mjs` for local production preview.
 
 ### Key Patterns
 

@@ -1,5 +1,42 @@
 # @markopack/rspack
 
+## 0.2.2
+
+### Patch Changes
+
+- 8eefd00: Clean stale generated files from `.marko-run/` on route discovery
+
+  Every rebuild regenerates the route entries, page templates, and router in
+  `.marko-run/`, but files whose source routes no longer exist were never
+  removed — they accumulated forever (a probe route deleted days ago kept its
+  generated files around). Discovery now deletes any generated-pattern file
+  (`__marko-run__*`, `*.marko`, `__fallback_index.html`) that the current run
+  didn't write; anything else in the directory is left untouched.
+
+- f99ddb6: Detect handler verbs via AST instead of regex source scan
+
+  Handler verb detection now parses the file and collects export identifiers
+  (mirroring upstream's `getExportIdentifiers`), so `export { list as GET }`
+  specifier aliases and `export const GET: Handler = ...` TS annotations are
+  recognized — the old regex missed both shapes. It also stops matching verb
+  names inside comments and strings: previously a mention of
+  `export function DELETE(` in a comment registered DELETE on the route, and
+  the generated router then imported a nonexistent export, failing the entire
+  build. Unparseable sources fall back to the historical scan.
+
+- ecf96d2: Ship real declaration files generated from source
+
+  `@markopack/rspack`'s hand-written `index.d.ts` stub lagged the actual API:
+  the `rspack` config-customization callback, `serverEntry`, and `routes`
+  options were untyped, and `emitRoutes` took `any[]` instead of `Route[]`.
+  Declarations are now emitted by `tsc` from the sources (which also type-
+  checks them — esbuild alone never did, and five errors had accumulated).
+  `DevServer` is exported as a type.
+
+- Updated dependencies [0e2f931]
+  - @markopack/core@0.2.2
+  - @markopack/compiler@0.2.2
+
 ## 0.2.1
 
 ### Patch Changes

@@ -91,6 +91,12 @@ export async function buildAndWriteRoutes(
     virtualModules,
   );
 
+  // Generated files from earlier builds whose routes no longer exist would
+  // otherwise accumulate here forever — unreferenced by the current router,
+  // but misleading when debugging. Delete anything matching our generated
+  // filename patterns that this run didn't write.
+  cleanupStaleFiles(entryFilesDir, virtualModules);
+
   if (debug) {
     console.log(`[rspack] ${routes.list.length} routes discovered`);
     for (const route of routes.list) {
@@ -131,6 +137,24 @@ function writeVirtualModule(
   virtualModules.set(filepath, content);
   fs.mkdirSync(path.dirname(filepath), { recursive: true });
   fs.writeFileSync(filepath, content);
+}
+
+// Files this package generates into .marko-run: per-route/middleware/router
+// entries (markoRunFilePrefix), rendered page templates, and the fallback
+// HTML. Anything else in the dir (e.g. routes.d.ts from a build) is left
+// alone.
+const GENERATED_FILE_PATTERN = new RegExp(
+  `^${markoRunFilePrefix}|\\.marko$|^__fallback_index\\.html$`,
+);
+
+function cleanupStaleFiles(dir: string, keep: Map<string, string>) {
+  for (const name of fs.readdirSync(dir)) {
+    const filePath = path.join(dir, name);
+    if (!GENERATED_FILE_PATTERN.test(name) || keep.has(filePath)) continue;
+    if (fs.statSync(filePath).isFile()) {
+      fs.rmSync(filePath);
+    }
+  }
 }
 
 async function detectHandlerVerbs(filePath: string): Promise<HttpVerb[]> {

@@ -62,6 +62,16 @@ async function main() {
   const distPath = path.join(cwd, "dist");
   if (fs.existsSync(distPath)) fs.rmSync(distPath, { recursive: true, force: true });
 
+  // Plant stale generated files whose source routes no longer exist —
+  // route discovery must clean them out of .marko-run on startup.
+  const markoRunDir = path.join(cwd, ".marko-run");
+  fs.mkdirSync(markoRunDir, { recursive: true });
+  const staleFiles = [
+    path.join(markoRunDir, "__marko-run__stale-probe.js"),
+    path.join(markoRunDir, "stale-probe.marko"),
+  ];
+  for (const file of staleFiles) fs.writeFileSync(file, "// stale\n");
+
   // Kill any stale process on the test port
   try { execFileSync("bash", ["-c", `lsof -ti :${PORT} | xargs kill -9`], { stdio: "ignore" }); } catch {}
 
@@ -95,6 +105,16 @@ async function main() {
   }
 
   console.log(`  ready on port ${port}`);
+
+  const staleLeft = staleFiles.filter((f) => fs.existsSync(f));
+  if (staleLeft.length) {
+    console.error(`  FAIL stale .marko-run files survived: ${staleLeft.map((f) => path.basename(f)).join(", ")}`);
+    await stopProcess(proc);
+    process.exitCode = 1;
+    return;
+  }
+  console.log("  ok   stale .marko-run files cleaned");
+
   console.log(`\nTesting ${ROUTES.length} routes...\n`);
 
   let passed = 0;

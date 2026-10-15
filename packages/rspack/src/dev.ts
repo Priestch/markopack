@@ -50,6 +50,63 @@ export async function startDevServer(
   let routerReady = false;
   let serverBundlePath: string | null = null;
 
+  // ---- dev full-reload (parity with @marko/run's vite dev) ------------------
+  // Browsers can't see in-process recompiles: an SSE channel + a tiny client
+  // script (injected into text/html responses served through the router)
+  // reload the page whenever either compiler finishes a clean rebuild.
+  const RELOAD_ENDPOINT = "/__markopack_reload";
+  const RELOAD_CLIENT_URL = "/__markopack_reload.js";
+  const RELOAD_SCRIPT =
+    `new EventSource(${JSON.stringify(RELOAD_ENDPOINT)}).onmessage = (e) => {` +
+    ' if (e.data === "reload") location.reload(); };';
+  const reloadClients = new Set<http.ServerResponse>();
+  let reloadDebounce: NodeJS.Timeout | undefined;
+
+  function scheduleReloadBroadcast() {
+    clearTimeout(reloadDebounce);
+    reloadDebounce = setTimeout(() => {
+      for (const res of reloadClients) res.write("data: reload\n\n");
+    }, 300);
+  }
+
+  function serveReloadClient(res: http.ServerResponse): void {
+    res.writeHead(200, {
+      "content-type": "application/javascript; charset=utf-8",
+      "cache-control": "no-store",
+    });
+    res.end(RELOAD_SCRIPT);
+  }
+
+  function openReloadStream(req: http.IncomingMessage, res: http.ServerResponse): void {
+    res.writeHead(200, {
+      "content-type": "text/event-stream",
+      "cache-control": "no-store",
+      connection: "keep-alive",
+    });
+    res.write("retry: 1000\n\n");
+    reloadClients.add(res);
+    req.on("close", () => reloadClients.delete(res));
+  }
+
+  /** Inject the reload client into the first HTML chunk written through the router. */
+  function injectReloadScript(res: http.ServerResponse): void {
+    const anyRes = res as any;
+    const origWrite = anyRes.write.bind(res);
+    const origEnd = anyRes.end.bind(res);
+    let injected = false;
+    const inject = (chunk: unknown) => {
+      const contentType = String(res.getHeader("content-type") ?? "");
+      if (injected || !chunk || !contentType.includes("text/html")) return chunk;
+      injected = true;
+      const text = typeof chunk === "string" ? chunk : Buffer.from(chunk as Uint8Array).toString("utf-8");
+      // <head> 由 Marko 流式 SSR 首块产出；没匹配到就放弃（非 HTML 文档响应）
+      return text.replace(/<head([^>]*)>/i, `<head$1><script src="${RELOAD_CLIENT_URL}"></script>`);
+    };
+    anyRes.write = (chunk?: any, ...rest: any[]) => origWrite(chunk === undefined ? undefined : inject(chunk), ...rest);
+    anyRes.end = (chunk?: any, ...rest: any[]) => origEnd(chunk === undefined ? undefined : inject(chunk), ...rest);
+  }
+  // ---------------------------------------------------------------------------
+
   const nodeCompiler = compiler.compilers.find((c: Compiler) => {
     const t = c.options.target;
     return t === "node" || (Array.isArray(t) && t.includes("node"));
@@ -63,6 +120,11 @@ export async function startDevServer(
     new rspack.ProgressPlugin({
       prefix: c.options.name ?? "rspack",
     }).apply(c);
+    // Full-reload trigger: any clean recompile of either compiler (debounced,
+    // so a change hitting both graphs reloads the page once).
+    c.hooks.done.tap("markopack:full-reload", (stats: Stats) => {
+      if (!stats.hasErrors()) scheduleReloadBroadcast();
+    });
   }
 
   if (nodeCompiler) {
@@ -70,7 +132,9 @@ export async function startDevServer(
       if (stats.hasErrors()) return;
       serverBundlePath = getServerEntryPath(stats, serverDist);
       if (serverBundlePath) {
-        reloadServerBundle(serverBundlePath);
+        // 换血完成后再广播一次（闭包内函数经此传入——reloadServerBundle 是模块级，
+        // 看不到 startDevServer 的作用域）
+        reloadServerBundle(serverBundlePath, scheduleReloadBroadcast);
         if (opts.routes) {
           routerReady = Boolean((globalThis as any).__marko_run__?.fetch);
         }
@@ -89,28 +153,47 @@ export async function startDevServer(
       (globalThis as any).__marko_run__.fetch(request, platform),
     );
 
-    let sirvFn: ((req: http.IncomingMessage, res: http.ServerResponse) => void) | null = null;
+    let sirvFn:
+      | ((req: http.IncomingMessage, res: http.ServerResponse, next: () => void) => void)
+      | null = null;
 
     server = http.createServer((req, res) => {
-      if (sirvFn && req.url && /\.\w+$/.test(req.url)) {
-        sirvFn(req, res);
+      const pathname = req.url ? new URL(req.url, "http://localhost").pathname : "";
+      if (pathname === RELOAD_ENDPOINT) {
+        openReloadStream(req, res);
+        return;
+      }
+      if (pathname === RELOAD_CLIENT_URL) {
+        serveReloadClient(res);
         return;
       }
 
-      if (routerReady && (globalThis as any).__marko_run__?.fetch) {
-        middleware(req, res, (err?: any) => {
-          if (err) {
-            res.statusCode = 500;
-            res.end(err.message || "Internal Server Error");
-          } else {
-            res.statusCode = 404;
-            res.end("Not Found");
-          }
-        });
-      } else {
-        res.statusCode = 503;
-        res.end("Server starting...");
+      const serveRouter = () => {
+        if (routerReady && (globalThis as any).__marko_run__?.fetch) {
+          injectReloadScript(res);
+          middleware(req, res, (err?: any) => {
+            if (err) {
+              res.statusCode = 500;
+              res.end(err.message || "Internal Server Error");
+            } else {
+              res.statusCode = 404;
+              res.end("Not Found");
+            }
+          });
+        } else {
+          res.statusCode = 503;
+          res.end("Server starting...");
+        }
+      };
+
+      // 带扩展名的 URL 先按静态资产服务；未命中落回 router——dot-path 路由
+      // （如插件产出的 /sitemap.xml）不能被静态查找吞成 404。
+      if (sirvFn && req.url && /\.\w+$/.test(req.url)) {
+        sirvFn(req, res, serveRouter);
+        return;
       }
+
+      serveRouter();
     });
 
     const initSirv = () => {
@@ -230,7 +313,7 @@ function getNetworkAddress(): string | undefined {
 
 let serverModule: any = null;
 
-function reloadServerBundle(bundlePath: string) {
+function reloadServerBundle(bundlePath: string, onReloaded?: () => void) {
   if (process.env.MARKOPACK_DEBUG) {
     console.error("[markopack:dev] reloadServerBundle:", bundlePath);
   }
@@ -250,6 +333,9 @@ function reloadServerBundle(bundlePath: string) {
     }
     try {
       serverModule = projectRequire(bundlePath);
+      // bundle 换血完成的再广播：compiler done 的广播可能早于换血，
+      // 确保浏览器 reload 拿到的是新 bundle
+      onReloaded?.();
       if (process.env.MARKOPACK_DEBUG) {
         console.error("[markopack:dev] server bundle reloaded, fetch:", typeof (globalThis as any).__marko_run__?.fetch);
       }

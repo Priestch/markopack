@@ -294,7 +294,12 @@ export async function startDevServer(
       await new Promise<void>((resolve) => {
         compiler.watching?.close(() => resolve());
       });
-      server?.close();
+      if (server) {
+        // server.close()'s callback waits out keep-alive connections —
+        // destroy them first or close() hangs for the keep-alive timeout.
+        server.closeAllConnections();
+        await new Promise<void>((resolve) => server!.close(() => resolve()));
+      }
     },
   };
 }

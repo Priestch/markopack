@@ -45,16 +45,13 @@ export async function spawnServer(
     shell: true,
     stdio,
     windowsHide: true,
+    // Own process group on unix so closeSpawnedProcess's `kill(-pid)` can
+    // reach the shell's children, not just the shell.
+    detached: process.platform !== "win32",
     env: { ...env, NODE_ENV: "development", ...process.env, PORT: `${port}` },
   });
 
-  const close = async () => {
-    proc.unref();
-    proc.kill();
-    if (!(await waitForExit(proc, 500))) {
-      proc.kill("SIGKILL");
-    }
-  };
+  const close = () => closeSpawnedProcess(proc);
 
   try {
     await Promise.race([waitForError(proc, port), waitForServer(port, wait)]);
@@ -69,9 +66,9 @@ export async function spawnServer(
   };
 }
 
-// Tree-killing close for shell-spawned processes (e.g. `netlify dev`):
-// unlike spawnServer's plain `proc.kill()`, this signals the whole process
-// group so children of the shell don't survive.
+// Tree-killing close for shell-spawned processes (spawnServer shells out, so
+// children of the shell would survive a plain `proc.kill()`): signals the
+// whole process group, SIGTERM then SIGKILL.
 export async function closeSpawnedProcess(proc: ChildProcess) {
   proc.unref();
   killTree(proc, "SIGTERM");

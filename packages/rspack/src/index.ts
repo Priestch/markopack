@@ -111,39 +111,46 @@ export async function build(options: RspackOptions = {}): Promise<void> {
   return new Promise<void>((resolve, reject) => {
     compiler.run((err, stats) => {
       compiler.close(async (closeErr) => {
-        if (err || closeErr) {
-          reject(err || closeErr);
-          return;
+        try {
+          if (err || closeErr) {
+            reject(err || closeErr);
+            return;
+          }
+          if (stats?.hasErrors()) {
+            const info = stats.toJson({ all: false, errors: true });
+            reject(new Error(info.errors?.map((e) => e.message).join("\n")));
+            return;
+          }
+
+          // Must precede adapter.buildEnd: the crawl renders pages through the
+          // server bundle, whose link-assets runtime needs the manifest.
+          injectLinkAssetsManifest(
+            markoPlugin,
+            path.join(outputDir, "server", "index.cjs"),
+          );
+
+          if (adapter?.buildEnd && routeResult?.routes) {
+            const serverDist = path.join(outputDir, "server");
+            const serverEntry = path.join(serverDist, "index.cjs");
+            const builtEntries = fs.existsSync(serverEntry) ? [serverEntry] : [];
+
+            const adapterEntry = await adapter.getEntryFile?.();
+            const sourceEntries = adapterEntry ? [adapterEntry] : [routeResult.routerPath];
+
+            await adapter.buildEnd({
+              config: {} as any,
+              routes: routeResult.routes,
+              builtEntries,
+              sourceEntries,
+            });
+          }
+          resolve();
+        } catch (e) {
+          // The callback is async — a throw below this point (manifest
+          // injection, adapter.buildEnd) would otherwise reject unhandled and
+          // leave the promise returned by build() forever unsettled.
+          reject(e as Error);
         }
-        if (stats?.hasErrors()) {
-          const info = stats.toJson({ all: false, errors: true });
-          reject(new Error(info.errors?.map((e) => e.message).join("\n")));
-          return;
-        }
-
-        // Must precede adapter.buildEnd: the crawl renders pages through the
-        // server bundle, whose link-assets runtime needs the manifest.
-        injectLinkAssetsManifest(
-          markoPlugin,
-          path.join(outputDir, "server", "index.cjs"),
-        );
-
-        if (adapter?.buildEnd && routeResult?.routes) {
-          const serverDist = path.join(outputDir, "server");
-          const serverEntry = path.join(serverDist, "index.cjs");
-          const builtEntries = fs.existsSync(serverEntry) ? [serverEntry] : [];
-
-          const adapterEntry = await adapter.getEntryFile?.();
-          const sourceEntries = adapterEntry ? [adapterEntry] : [routeResult.routerPath];
-
-          await adapter.buildEnd({
-            config: {} as any,
-            routes: routeResult.routes,
-            builtEntries,
-            sourceEntries,
-          });
-        }
-        resolve();
       });
     });
   });

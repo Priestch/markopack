@@ -9,6 +9,11 @@ import type { RouteBuildResult } from "./routes.js";
 
 const projectRequire = createRequire(import.meta.url);
 
+// Resolved as a path (not a bare loader string): rspack resolves bare loader
+// names from the app's context, which can't see this package's deps under
+// pnpm's strict layout.
+const sassLoaderPath = projectRequire.resolve("sass-loader");
+
 export interface CreateConfigsOptions {
   root: string;
   entry: string;
@@ -162,6 +167,15 @@ export function createConfigs(
         mode === "production"
           ? "static/js/[name].[contenthash:8].chunk.js"
           : "static/js/[name].chunk.js",
+      // Native css chunks (type: "css/auto") follow output.*, not the
+      // CssExtractRspackPlugin filename options — without these, css lands
+      // next to the js chunks under static/js/.
+      cssFilename:
+        mode === "production" ? "static/css/[name].[contenthash:8].css" : "static/css/[name].css",
+      cssChunkFilename:
+        mode === "production"
+          ? "static/css/[name].[contenthash:8].chunk.css"
+          : "static/css/[name].chunk.css",
       publicPath: "/",
     },
     resolve: resolveConfig,
@@ -199,7 +213,23 @@ export function createConfigs(
               options: { targets: "defaults" },
             },
           ],
-          type: "javascript/auto",
+          type: "css/auto",
+        },
+        {
+          // Marko <style.scss> blocks materialize as .scss virtual deps
+          // (marko-loader resolveVirtualDependency) — compile sass → css
+          // first (use array runs last-to-first), then the same
+          // lightningcss/extract chain as plain css.
+          test: /\.s[ac]ss$/,
+          use: [
+            rspack.CssExtractRspackPlugin.loader,
+            {
+              loader: "builtin:lightningcss-loader",
+              options: { targets: "defaults" },
+            },
+            sassLoaderPath,
+          ],
+          type: "css/auto",
         },
         {
           test: /\.(png|jpe?g|gif|svg|webp)$/i,
@@ -222,14 +252,7 @@ export function createConfigs(
         inject: "head",
         scriptLoading: "module",
       }),
-      new rspack.CssExtractRspackPlugin({
-        filename: mode === "production"
-          ? "static/css/[name].[contenthash:8].css"
-          : "static/css/[name].css",
-        chunkFilename: mode === "production"
-          ? "static/css/[name].[contenthash:8].chunk.css"
-          : "static/css/[name].chunk.css",
-      }),
+      new rspack.CssExtractRspackPlugin(),
     ],
     devtool: mode === "development" ? "cheap-module-source-map" : "hidden-source-map",
     stats: "errors-warnings",
@@ -285,6 +308,7 @@ export function createConfigs(
           test: /\.css$/,
           type: "asset/source",
         },
+        { test: /\.s[ac]ss$/, type: "asset/source" },
       ],
     },
     plugins: [

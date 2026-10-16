@@ -56,7 +56,7 @@ function makeResolveVirtualDependency(root: string) {
     const name = `${fromId}__${dep.virtualPath.replace(
       /[^a-z0-9_.-]+/gi,
       '_',
-    )}.js`;
+    )}${path.extname(dep.virtualPath) ? '' : '.js'}`;
     const file = path.join(virtualDir, name);
     fs.mkdirSync(virtualDir, { recursive: true });
     fs.writeFileSync(file, dep.code);
@@ -111,15 +111,15 @@ export default function markoLoader(
           ? { linkAssets: { runtime: linkAssetsRuntimePath, onAsset } }
           : {}),
         ...((isServerEntry || isBrowserEntry) ? { entry: 'page' as const } : {}),
-        ...(outputFormat === 'hydrate'
-          ? {
-              // `root` exists at runtime but is missing from rspack's
-              // LoaderContext typings.
-              resolveVirtualDependency: makeResolveVirtualDependency(
-                (this as { root?: string }).root || process.cwd(),
-              ),
-            }
-          : {}),
+        // All outputs: the translator reports virtual dependencies through
+        // this callback — hydrate boundaries (browser), and extracted
+        // <style> blocks as `<file>.marko.css` deps (any output). Without
+        // it styles are silently dropped (no import is emitted). `root`
+        // exists at runtime but is missing from rspack's LoaderContext
+        // typings.
+        resolveVirtualDependency: makeResolveVirtualDependency(
+          (this as { root?: string }).root || process.cwd(),
+        ),
         ...(options.babelConfig ? { babelConfig: options.babelConfig } : {}),
         sourceMaps: options.sourceMaps ?? false,
         writeVersionComment: false,

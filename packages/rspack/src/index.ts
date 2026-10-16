@@ -8,6 +8,7 @@ import { createConfigs } from "./config.js";
 import { buildAndWriteRoutes, type MarkoRunRspackOptions, type RouteBuildResult } from "./routes.js";
 import { injectLinkAssetsManifest } from "./link-assets.js";
 import { startDevServer, type DevServer } from "./dev.js";
+import { loadUserConfig, mergeConfig, type UserRspackConfig } from "./user-config.js";
 import MarkoRspackPlugin from "@markopack/compiler";
 
 export type { MarkoRunRspackOptions } from "./routes.js";
@@ -35,6 +36,11 @@ export interface RspackOptions extends MarkoRunRspackOptions {
    * Customize the generated rspack configurations before compilation —
    * e.g. to add loaders (PostCSS/Tailwind), aliases, or plugins. Mutate the
    * passed config in place, or return a configuration to replace it.
+   *
+   * An rspack.config.{ts,js,mjs,...} file in the app root is loaded
+   * automatically and applied the same way first: an object export merges
+   * into the browser config (arrays like module.rules/plugins concatenate),
+   * a function export receives every generated config `(config, side)`.
    */
   rspack?: (config: Configuration, side: "browser" | "server") => Configuration | void;
 }
@@ -92,6 +98,7 @@ export async function build(options: RspackOptions = {}): Promise<void> {
   const adapter = options.adapter ?? null;
 
   const routeResult = await buildRoutes(options, root, true);
+  const userConfig = await loadUserConfig(root);
 
   const { web, node, markoPlugin } = createConfigs({
     root,
@@ -102,8 +109,8 @@ export async function build(options: RspackOptions = {}): Promise<void> {
     serverEntry: options.serverEntry,
   });
 
-  const webConfig = customize(withMarkoPlugin(web, "browser", markoPlugin), "browser", options);
-  const nodeConfig = customize(withMarkoPlugin(node, "server", markoPlugin), "server", options);
+  const webConfig = customize(withMarkoPlugin(web, "browser", markoPlugin), "browser", options, userConfig);
+  const nodeConfig = customize(withMarkoPlugin(node, "server", markoPlugin), "server", options, userConfig);
 
   const compiler = rspack([webConfig, nodeConfig]) as MultiCompiler;
   markoPlugin.applyDependencies(compiler as unknown as Compiler, false);
@@ -164,6 +171,7 @@ export async function dev(options: RspackOptions = {}): Promise<DevServer> {
   const port = options.port || Number(process.env.PORT) || 3000;
 
   const routeResult = await buildRoutes(options, root, false);
+  const userConfig = await loadUserConfig(root);
 
   const { web, node, markoPlugin, virtualModulesPlugin } = createConfigs({
     root,
@@ -174,8 +182,8 @@ export async function dev(options: RspackOptions = {}): Promise<DevServer> {
     serverEntry: options.serverEntry,
   });
 
-  const webConfig = customize(withMarkoPlugin(web, "browser", markoPlugin), "browser", options);
-  const nodeConfig = customize(withMarkoPlugin(node, "server", markoPlugin), "server", options);
+  const webConfig = customize(withMarkoPlugin(web, "browser", markoPlugin), "browser", options, userConfig);
+  const nodeConfig = customize(withMarkoPlugin(node, "server", markoPlugin), "server", options, userConfig);
 
   const compiler = rspack([webConfig, nodeConfig]) as MultiCompiler;
   markoPlugin.applyDependencies(compiler as unknown as Compiler, true);
@@ -200,8 +208,21 @@ function customize(
   config: Configuration,
   side: "browser" | "server",
   options: RspackOptions,
+  userConfig: UserRspackConfig | null,
 ): Configuration {
-  return options.rspack?.(config, side) ?? config;
+  let customized = config;
+  if (userConfig && typeof userConfig !== "function") {
+    // Object export: merged into the browser config only — the node build
+    // (SSR bundle, different target/asset handling) opts in via the
+    // function form instead.
+    if (side === "browser") {
+      customized = mergeConfig(customized, userConfig);
+    }
+  } else if (userConfig) {
+    const result = userConfig(customized, side);
+    if (result) customized = result;
+  }
+  return options.rspack?.(customized, side) ?? customized;
 }
 
 function withMarkoPlugin(

@@ -13,6 +13,8 @@
     "@marko/runtime-tags": "6.4.5"
   },
   "devDependencies": {
-    "@markopack/rspack": "workspace:*"
+    "@markopack/rspack": "workspace:*",
+    "sass": "^1.105.2",
+    "sass-loader": "^17.0.1"
   }
 }

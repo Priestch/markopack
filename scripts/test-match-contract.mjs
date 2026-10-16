@@ -23,8 +23,10 @@ const serverBundle = path.join(exampleDir, "dist/server/index.cjs");
 
 // Resolve the runtime the same way the rspack config does: through the
 // installed @marko/run package, bypassing its exports map with a file URL
-// (deep import of dist/runtime/internal.js).
-const projectRequire = createRequire(path.join(root, "package.json"));
+// (deep import of dist/runtime/internal.js). Resolved from packages/rspack
+// (the package that depends on @marko/run) — the root declares it nowhere,
+// which pnpm's strict layout enforces.
+const projectRequire = createRequire(path.join(root, "packages/rspack/package.json"));
 const runRoot = projectRequire
   .resolve("@marko/run")
   .replace(/(src|dist)[\\/]runtime[\\/].*$/, "");
@@ -36,7 +38,7 @@ if (!fs.existsSync(runtimeInternal)) {
 }
 
 console.log("Building example (rspack-basic)...");
-execFileSync("npm", ["run", "build"], {
+execFileSync("pnpm", ["run", "build"], {
   cwd: exampleDir,
   stdio: ["ignore", "ignore", "inherit"],
   shell: true,

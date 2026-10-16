@@ -10,36 +10,38 @@ markopack is a monorepo providing Rspack integration for `@marko/run`. It lets d
 
 ```bash
 # Build all packages
-npm run build
+pnpm run build
 
 # Build, then start the example dev server
-npm run dev:example
+pnpm run dev:example
 
 # Build, then run smoke test against example
-npm run verify:example
+pnpm run verify:example
 
 # Test route generation (builds core + rspack, then runs scripts/test-routes.mjs)
-npm run test:routes
+pnpm run test:routes
 
 # Assert generated match objects against the installed @marko/run runtime
-npm run test:contract
+pnpm run test:contract
 
 # Run adapter build tests (builds everything first)
-npm run test:adapters
+pnpm run test:adapters
 
 # Crawler regression guard (builds adapter-static, then runs scripts/test-crawler.mjs)
-npm run test:crawler
+pnpm run test:crawler
 
 # Dev-server route watching / hot route discovery
-npm run test:dev-watch
+pnpm run test:dev-watch
 
 # Sync vendored code from upstream @marko/run
-npm run sync:marko-run          # apply
-npm run sync:marko-run:check    # dry-run
+pnpm run sync:marko-run          # apply
+pnpm run sync:marko-run:check    # dry-run
 
 # Benchmarks
-npm run bench:setup && npm run bench:perf
+pnpm run bench:setup && pnpm run bench:perf
 ```
+
+Workspace management is **pnpm-only** (no package-lock; `linkWorkspacePackages: true` links intra-repo `^0.2.x` specs). The `bench/` fixtures are vendored standalone apps that still carry their own npm lockfiles — `bench-setup.mjs` runs `npm install` inside them on purpose (lockfile comparability); everything else uses pnpm.
 
 There is no formal unit test suite — verification is done via the six scripts above: `verify:example` (smoke test), `test:routes`, `test:contract` (asserts generated match objects against the installed `@marko/run` runtime — guards against upstream drift like the 0.11 `route.options` breakage), `test:adapters`, `test:crawler`, and `test:dev-watch`.
 

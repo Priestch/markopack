@@ -9,9 +9,10 @@
     "start": "node dist/server/index.cjs"
   },
   "dependencies": {
-    "marko": "^6.4.5"
+    "marko": "^6.4.5",
+    "@marko/runtime-tags": "6.4.5"
   },
   "devDependencies": {
-    "@markopack/rspack": "file:../../packages/rspack"
+    "@markopack/rspack": "workspace:*"
   }
 }

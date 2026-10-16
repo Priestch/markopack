@@ -6,4 +6,3 @@ examples/*/.marko-run/
 .rsdoctor/
 .rspack-profile-*
 .codex
-pnpm-lock.yaml

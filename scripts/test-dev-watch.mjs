@@ -180,7 +180,7 @@ async function main() {
   try { execFileSync("bash", ["-c", `lsof -ti :${PORT} | xargs kill -9`], { stdio: "ignore" }); } catch {}
 
   console.log("Starting rspack dev server...");
-  const proc = spawn("npm", ["run", "dev"], {
+  const proc = spawn("pnpm", ["run", "dev"], {
     cwd,
     shell: true,
     detached: true,

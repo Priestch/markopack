@@ -4,29 +4,29 @@
   "version": "0.0.0",
   "type": "module",
   "license": "MIT",
-  "workspaces": [
-    "packages/*",
-    "examples/*"
-  ],
   "scripts": {
-    "build": "npm run build -w @markopack/core && npm run build -w @markopack/compiler && npm run -ws build --if-present",
-    "dev:example": "npm run -s build -w @markopack/core && npm run -s build -w @markopack/rspack && npm run dev -w @markopack/example-rspack-basic",
-    "verify:example": "npm run -s build -w @markopack/core && npm run -s build -w @markopack/rspack && node scripts/smoke-example.mjs",
+    "build": "pnpm --filter @markopack/core run build && pnpm --filter @markopack/compiler run build && pnpm -r run build",
+    "dev:example": "pnpm --filter @markopack/core run build && pnpm --filter @markopack/rspack run build && pnpm --filter @markopack/example-rspack-basic run dev",
+    "verify:example": "pnpm --filter @markopack/core run build && pnpm --filter @markopack/rspack run build && node scripts/smoke-example.mjs",
     "sync:marko-run": "node scripts/sync-from-marko-run.mjs --ref main",
     "sync:marko-run:check": "node scripts/sync-from-marko-run.mjs --ref main --check",
     "bench:prepare": "node scripts/bench-setup.mjs",
-    "bench:setup": "npm run bench:prepare",
+    "bench:setup": "pnpm run bench:prepare",
     "bench:perf": "node scripts/bench-perf.mjs",
-    "test:routes": "npm run -s build -w @markopack/core && npm run -s build -w @markopack/rspack && node scripts/test-routes.mjs",
+    "test:routes": "pnpm --filter @markopack/core run build && pnpm --filter @markopack/rspack run build && node scripts/test-routes.mjs",
     "version": "changeset version",
-    "release": "npm run build && changeset publish",
-    "test:contract": "npm run -s build -w @markopack/core && npm run -s build -w @markopack/rspack && node scripts/test-match-contract.mjs",
-    "test:adapters": "npm run -s build && node scripts/test-adapters.mjs",
-    "test:dev-watch": "npm run -s build -w @markopack/core && npm run -s build -w @markopack/compiler && npm run -s build -w @markopack/rspack && node scripts/test-dev-watch.mjs",
-    "test:crawler": "npm run -s build -w @markopack/adapter-static && node scripts/test-crawler.mjs"
+    "release": "pnpm run build && changeset publish",
+    "test:contract": "pnpm --filter @markopack/core run build && pnpm --filter @markopack/rspack run build && node scripts/test-match-contract.mjs",
+    "test:adapters": "pnpm run build && node scripts/test-adapters.mjs",
+    "test:dev-watch": "pnpm --filter @markopack/core run build && pnpm --filter @markopack/compiler run build && pnpm --filter @markopack/rspack run build && node scripts/test-dev-watch.mjs",
+    "test:crawler": "pnpm --filter @markopack/adapter-static run build && node scripts/test-crawler.mjs"
   },
   "devDependencies": {
     "@changesets/cli": "^2.29.4",
+    "@markopack/adapter-netlify": "workspace:*",
+    "@markopack/adapter-node": "workspace:*",
+    "@markopack/adapter-static": "workspace:*",
+    "@markopack/rspack": "workspace:*",
     "typescript": "^5.9.3"
   }
 }

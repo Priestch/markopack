@@ -8,14 +8,14 @@ const fixtures = [
 ];
 
 console.log("Building local @markopack/compiler package");
-execSync("npm run build", {
+execSync("pnpm run build", {
   cwd: path.join(root, "packages/compiler"),
   stdio: "inherit",
   shell: true,
 });
 
 console.log("Building local @markopack/rspack package");
-execSync("npm run build", {
+execSync("pnpm run build", {
   cwd: path.join(root, "packages/rspack"),
   stdio: "inherit",
   shell: true,

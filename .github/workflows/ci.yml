@@ -13,19 +13,23 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 12
+
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: npm
+          cache: pnpm
 
-      - run: npm ci
+      - run: pnpm install --frozen-lockfile
 
-      - run: npm run build
+      - run: pnpm run build
 
-      - run: npm run verify:example
+      - run: pnpm run verify:example
 
-      - run: npm run test:routes
+      - run: pnpm run test:routes
 
-      # `npm run build` above already produced dist/ for every workspace —
+      # `pnpm run build` above already produced dist/ for every workspace —
       # run the adapter script directly to avoid a redundant full rebuild.
       - run: node scripts/test-adapters.mjs

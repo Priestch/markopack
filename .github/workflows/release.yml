@@ -16,19 +16,23 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 12
+
       - uses: actions/setup-node@v4
         with:
           node-version: 24
-          cache: npm
+          cache: pnpm
           registry-url: https://registry.npmjs.org
 
-      - run: npm ci
+      - run: pnpm install --frozen-lockfile
 
       - name: Create Release Pull Request or Publish
         uses: changesets/action@v1
         with:
-          publish: npm run release
-          version: npm run version
+          publish: pnpm run release
+          version: pnpm run version
           commit: "chore: release packages"
           title: "chore: release packages"
         env:

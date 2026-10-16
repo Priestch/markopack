@@ -30,7 +30,7 @@ async function main() {
   // Kill any stale process on the port
   try { execFileSync("bash", ["-c", `lsof -ti :${port} | xargs kill -9`], { stdio: "ignore" }); } catch {}
 
-  const proc = spawn("npm", ["run", "dev"], {
+  const proc = spawn("pnpm", ["run", "dev"], {
     cwd,
     shell: true,
     detached: true,

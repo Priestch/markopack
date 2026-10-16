@@ -34,11 +34,9 @@
   },
   "dependencies": {
     "@babel/parser": "^7.29.2",
-    "@markopack/core": "^0.2.2",
-    "@markopack/compiler": "^0.2.2",
+    "@markopack/core": "workspace:*",
+    "@markopack/compiler": "workspace:*",
     "picocolors": "^1.1.1",
-    "sass": "^1.105.2",
-    "sass-loader": "^17.0.1",
     "sirv": "^3.0.1"
   },
   "peerDependencies": {

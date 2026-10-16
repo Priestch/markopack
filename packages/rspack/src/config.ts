@@ -9,11 +9,6 @@ import type { RouteBuildResult } from "./routes.js";
 
 const projectRequire = createRequire(import.meta.url);
 
-// Resolved as a path (not a bare loader string): rspack resolves bare loader
-// names from the app's context, which can't see this package's deps under
-// pnpm's strict layout.
-const sassLoaderPath = projectRequire.resolve("sass-loader");
-
 export interface CreateConfigsOptions {
   root: string;
   entry: string;
@@ -156,9 +151,17 @@ export function createConfigs(
 
   const webConfig: Configuration = {
     name: "web",
+    // Anchor resolution (bare loader names, relative paths) to the app —
+    // without this it defaults to process.cwd(), making builds depend on
+    // where they're launched from.
+    context: root,
     target: ["web", "es2020"],
     mode,
     entry: webEntry,
+    // Native css pipeline: `type: "css/auto"` rules and CssExtractRspackPlugin
+    // extraction only function with the css experiment on — without it the
+    // css/auto type is inert and no stylesheet is ever emitted.
+    experiments: { css: true },
     output: {
       path: clientDist,
       filename:
@@ -205,31 +208,20 @@ export function createConfigs(
           ],
         },
         {
+          // Defaults handle plain css only — preprocessor rules (sass, less,
+          // …) belong in the app's rspack.config.* where they merge with
+          // these (see loadUserConfig in index.ts).
           test: /\.css$/,
+          // No CssExtract loader in `use`: under experiments.css the plugin
+          // extracts type:"css" modules natively — its loader is the legacy
+          // (webpack mini-css) path and does nothing here.
           use: [
-            rspack.CssExtractRspackPlugin.loader,
             {
               loader: "builtin:lightningcss-loader",
               options: { targets: "defaults" },
             },
           ],
-          type: "css/auto",
-        },
-        {
-          // Marko <style.scss> blocks materialize as .scss virtual deps
-          // (marko-loader resolveVirtualDependency) — compile sass → css
-          // first (use array runs last-to-first), then the same
-          // lightningcss/extract chain as plain css.
-          test: /\.s[ac]ss$/,
-          use: [
-            rspack.CssExtractRspackPlugin.loader,
-            {
-              loader: "builtin:lightningcss-loader",
-              options: { targets: "defaults" },
-            },
-            sassLoaderPath,
-          ],
-          type: "css/auto",
+          type: "css",
         },
         {
           test: /\.(png|jpe?g|gif|svg|webp)$/i,
@@ -260,6 +252,7 @@ export function createConfigs(
 
   const nodeConfig: Configuration = {
     name: "node",
+    context: root,
     target: "node",
     mode,
     entry: nodeEntry,

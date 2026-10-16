@@ -24,7 +24,7 @@
     "build": "tsc -p tsconfig.json && cp src/default-entry.mjs dist/default-entry.mjs"
   },
   "dependencies": {
-    "@markopack/core": "^0.2.2",
+    "@markopack/core": "workspace:*",
     "compression": "^1.8.0",
     "htmlparser2": "^10.0.0",
     "kleur": "^4.1.5",

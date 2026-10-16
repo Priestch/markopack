@@ -72,8 +72,18 @@ function ensureRepo(repoUrl) {
 
 function checkoutRef(repoDir, ref) {
   runGit(["fetch", "--force", "--tags", "origin"], repoDir);
-  runGit(["checkout", "--force", ref], repoDir);
-  runGit(["reset", "--hard", ref], repoDir);
+  // A branch-name ref must resolve to its freshly fetched remote tip, not
+  // the clone's stale local branch (which `git fetch` never moves).
+  const remoteRef = `origin/${ref}`;
+  let target = ref;
+  try {
+    runGitRead(["rev-parse", "--verify", remoteRef + "^{commit}"], repoDir);
+    target = remoteRef;
+  } catch {
+    // ref is a commit sha or tag — use it as-is.
+  }
+  runGit(["checkout", "--force", "main"], repoDir);
+  runGit(["reset", "--hard", target], repoDir);
 }
 
 const CORE_MAPPINGS = [
@@ -206,7 +216,7 @@ function applyLocalTransforms(target, data) {
           "",
         )
         .replace(
-          '  plugins?(event: {\n    root: string;\n    command: "dev" | "build";\n  }): Promise<Plugin[] | undefined> | Plugin[] | undefined;\n',
+          '  plugins?(event: {\n    root: string;\n    command: "dev" | "build";\n    entry: string | undefined;\n  }): Promise<Plugin[] | undefined> | Plugin[] | undefined;\n',
           "",
         )
         .replace(

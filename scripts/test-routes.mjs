@@ -167,9 +167,36 @@ async function main() {
     }
   }
 
+  // Component <style> blocks must survive compilation: /about mounts
+  // style-probe.marko (a nested component with a plain <style>), whose rule
+  // has to reach the browser via an extracted stylesheet linked from the
+  // SSR HTML — not be silently dropped by the translator.
+  {
+    const res = await fetch(`http://127.0.0.1:${port}/about`);
+    const html = await res.text();
+    const href = html.match(/<link rel="stylesheet" href="([^"]+\.css)"/)?.[1];
+    const errors = [];
+    if (!href) {
+      errors.push("no stylesheet link in SSR HTML");
+    } else {
+      const css = await (await fetch(`http://127.0.0.1:${port}${href}`)).text();
+      if (!css.includes(".style-probe-nested-component p")) {
+        errors.push(`probe rule missing from ${href}`);
+      }
+    }
+    if (errors.length) {
+      console.log("  FAIL component <style> survives to extracted css");
+      for (const e of errors) console.log(`       ${e}`);
+      failed++;
+    } else {
+      console.log("  ok   component <style> survives to extracted css");
+      passed++;
+    }
+  }
+
   await stopProcess(proc);
 
-  console.log(`\n  ${passed} passed, ${failed} failed, ${ROUTES.length} total`);
+  console.log(`\n  ${passed} passed, ${failed} failed, ${passed + failed} total`);
   // Exit explicitly: lingering keep-alive sockets from fetch keep the loop alive.
   process.exit(failed > 0 ? 1 : 0);
 }

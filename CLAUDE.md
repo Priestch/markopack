@@ -6,6 +6,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 markopack is a monorepo providing Rspack integration for `@marko/run`. It lets developers build Marko SSR applications using raw Rspack with zero framework overhead. The project vendors selected source files from `@marko/run` (the upstream Vite-based toolkit) and adapts them for Rspack.
 
+The sibling repo `markopress` consumes markopack via `pnpm link:` — local edits here take effect there immediately, and refactors must account for that consumer.
+
 ## Commands
 
 ```bash
@@ -104,7 +106,3 @@ Preconditions that silently block the release PR (the workflow fails before chan
 
 - `pnpm install --frozen-lockfile` (pnpm **12**, per the workflow) must pass: commit `pnpm-lock.yaml` together with any `package.json` change, regenerated with pnpm 12 (a local pnpm 9 can write an incompatible lockfile). CI also runs this in `ci.yml` — a red Actions tab means no release PR.
 - Dependencies with install scripts must be listed under `allowBuilds` in `pnpm-workspace.yaml`, otherwise pnpm 12 hard-fails with `ERR_PNPM_IGNORED_BUILDS` (this broke releases for both `2f61bfe` and `cac7947`).
-
-## Release State
-
-npm and the repo are in sync as of `@markopack/rspack` 0.3.2 (crawler concurrency fix, hot route discovery, dev full-reload, dev dot-path fallthrough, query-suffixed asset serving, the css-extraction fix, production dist cleaning, and `rspack.config.*` support are all published). The sibling repo `markopress` consumes markopack via `pnpm link:` — local edits here take effect there immediately, and refactors must account for that consumer.

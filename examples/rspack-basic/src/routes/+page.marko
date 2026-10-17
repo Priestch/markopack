@@ -1,3 +1,5 @@
+import LazyPanel from "../components/lazy-panel.marko" with { load: "idle" };
+
 <style.scss>
   $hero-ring: #b75a2f;
   $hero-wash: rgba(183, 90, 47, 0.08);
@@ -31,6 +33,7 @@
     <span class=["chip", "chip-scss"]>catch-all</span>
     <span class=["chip", "chip-scss"]>pathless</span>
   </div>
+  <LazyPanel/>
 </section>
 
 <section class="card section-card">

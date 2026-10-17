@@ -1,0 +1,22 @@
+<let/hydrated = false />
+<div class="lazy-panel-fixture" data-hydrated=hydrated ? "1" : undefined>
+  <script>
+    // Hydration-resume probe: only runs in the browser once this lazily
+    // loaded component's chunk has executed and hydration resumed.
+    hydrated = true;
+  </script>
+  <p>lazy panel content</p>
+</div>
+
+<style>
+  .lazy-panel-fixture {
+    border: 2px dashed rgba(183, 90, 47, 0.55);
+    border-radius: 10px;
+    padding: 0.9rem 1.1rem;
+  }
+
+  .lazy-panel-fixture p {
+    margin: 0;
+    font-weight: 600;
+  }
+</style>

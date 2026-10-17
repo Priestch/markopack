@@ -19,7 +19,8 @@
     "test:contract": "pnpm --filter @markopack/core run build && pnpm --filter @markopack/rspack run build && node scripts/test-match-contract.mjs",
     "test:adapters": "pnpm run build && node scripts/test-adapters.mjs",
     "test:dev-watch": "pnpm --filter @markopack/core run build && pnpm --filter @markopack/compiler run build && pnpm --filter @markopack/rspack run build && node scripts/test-dev-watch.mjs",
-    "test:crawler": "pnpm --filter @markopack/adapter-static run build && node scripts/test-crawler.mjs"
+    "test:crawler": "pnpm --filter @markopack/adapter-static run build && node scripts/test-crawler.mjs",
+    "test:lazy": "pnpm --filter @markopack/core run build && pnpm --filter @markopack/rspack run build && node scripts/test-lazy.mjs"
   },
   "devDependencies": {
     "@changesets/cli": "^2.29.4",

@@ -40,6 +40,8 @@ Every build produces two Rspack bundles coordinated by a **MultiCompiler**:
 
 `MarkoRspackPlugin` syncs dynamic entry points and the client asset manifest between the two compilers. Routes are generated as virtual modules in `.marko-run/` at build time. In dev, server-bundle changes swap the server in place (browser reloads over SSE) and new route files are picked up without a restart.
 
+Lazily loaded components — the [`load` import attribute](https://markojs.com/docs/reference/lazy-loading) — are supported: each lazy component gets its own load-entry chunk, and SSR output carries the trigger script plus the anti-FOUC stylesheet link so the component hydrates when its trigger fires.
+
 ## Project Setup
 
 A markopack project is two small scripts around the `dev()` / `build()` APIs — this is all the scaffolding `create-markopack` generates:
@@ -142,10 +144,6 @@ export function close() {
 ```
 
 See [`examples/rspack-pure-marko`](./examples/rspack-pure-marko) for a complete working example.
-
-## Limitations
-
-- Lazily loaded components — the [`load` import attribute](https://markojs.com/docs/reference/lazy-loading) — are not yet supported: they render on the server, but their JavaScript never reaches the browser, so they don't hydrate. Import components statically for now.
 
 ## Examples
 

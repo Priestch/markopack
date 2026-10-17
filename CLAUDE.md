@@ -107,4 +107,4 @@ Preconditions that silently block the release PR (the workflow fails before chan
 
 ## Release State
 
-The npm packages lag the repo: published `@markopack/rspack` 0.2.2 predates the crawler concurrency fix, hot route discovery, dev full-reload, the dev dot-path fallthrough, the css-extraction fix, and `rspack.config.*` support (pending changesets — the next release will be a `rspack` minor). The sibling repo `markopress` therefore consumes markopack via `pnpm link:` — local edits here take effect there immediately, and refactors must account for that consumer.
+npm and the repo are in sync as of `@markopack/rspack` 0.3.2 (crawler concurrency fix, hot route discovery, dev full-reload, dev dot-path fallthrough, query-suffixed asset serving, the css-extraction fix, production dist cleaning, and `rspack.config.*` support are all published). The sibling repo `markopress` consumes markopack via `pnpm link:` — local edits here take effect there immediately, and refactors must account for that consumer.

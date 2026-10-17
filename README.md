@@ -4,8 +4,9 @@
 
 ## Overview
 
-markopack is a monorepo that lets you use Marko's file-based routing and SSR system with [Rspack](https://rspack.rs/) instead of Vite. Drop it into any Marko project and get the same route conventions, adapters, and hot reload you'd get from `@marko/run` — without Vite.
+markopack lets you use Marko's file-based routing and SSR system with [Rspack](https://rspack.rs/) instead of Vite. Drop it into any Marko project and get the same route conventions, adapters, and hot reload you'd get from `@marko/run` — without Vite.
 
+Requires Node `>=20.19.0 || >=22.12.0`.
 
 ## Quick Start
 
@@ -13,7 +14,7 @@ markopack is a monorepo that lets you use Marko's file-based routing and SSR sys
 npm create markopack@latest
 ```
 
-The CLI will ask for a project name, adapter, and whether to use TypeScript, then scaffold and install everything for you.
+The CLI asks for a project name, adapter (`node`, `static`, or `netlify`), and whether to use TypeScript, then scaffolds and installs everything for you.
 
 **Non-interactive:**
 
@@ -25,24 +26,65 @@ Once scaffolded:
 
 ```bash
 cd my-app
-npm run dev    # start the dev server
-npm run build  # production build
+npm run dev      # dev server: hot reload + hot route discovery
+npm run build    # production build → dist/client + dist/server
+npm run preview  # serve the production build locally
 ```
 
-## Architecture
-
-```
-@markopack/core  ←  @markopack/compiler  ←  @markopack/rspack
-                                              ↕
-                                   adapters (node, static, netlify)
-```
+## How It Works
 
 Every build produces two Rspack bundles coordinated by a **MultiCompiler**:
 
 - **browser** (`dist/client/`) — DOM hydration bundle, compiled with `output: "dom"`
 - **server** (`dist/server/`) — CJS SSR bundle, compiled with `output: "html"`
 
-`MarkoRspackPlugin` syncs dynamic entry points (one per Marko component used server-side) and the client asset manifest between the two compilers.
+`MarkoRspackPlugin` syncs dynamic entry points and the client asset manifest between the two compilers. Routes are generated as virtual modules in `.marko-run/` at build time. In dev, server-bundle changes swap the server in place (browser reloads over SSE) and new route files are picked up without a restart.
+
+## Project Setup
+
+A markopack project is two small scripts around the `dev()` / `build()` APIs — this is all the scaffolding `create-markopack` generates:
+
+```js
+// dev.mjs
+import { dev } from "@markopack/rspack";
+
+dev({ root: import.meta.dirname, entry: "./src/index.ts" });
+```
+
+```js
+// build.mjs
+import { build } from "@markopack/rspack";
+
+build({ root: import.meta.dirname, entry: "./src/index.ts", mode: "production" });
+```
+
+```ts
+// src/index.ts — browser entry: hydrate the server-rendered page
+import Page from "./routes/+page.marko";
+
+Page.renderSync({}).appendTo(document.body);
+```
+
+Other notable options: `outputDir`, `port`, `adapter`, `routesDir`, `trailingSlashes`, and `rspack` — a `(config, side) => config` callback applied to each generated config. See the `RspackOptions` type for the full list.
+
+### Adapters
+
+- **node** (default) — no `adapter` option needed; `dist/server/index.cjs` is a standalone Node server.
+- **static** — `@markopack/adapter-static` crawls your routes and emits pre-rendered HTML.
+- **netlify** — `@markopack/adapter-netlify` wraps the upstream `@marko/run` Netlify adapter.
+
+### Customizing Rspack
+
+An `rspack.config.{ts,js,mjs,…}` file in the app root is picked up automatically: an object export is merged into the browser config (arrays like `module.rules` concatenate), a function export receives every generated config as `(config, side) => config | void`.
+
+```js
+// rspack.config.mjs
+export default {
+  module: {
+    rules: [{ test: /\.scss$/, use: "sass-loader" }],
+  },
+};
+```
 
 ## Route Conventions
 
@@ -61,7 +103,7 @@ markopack inherits all `@marko/run` conventions:
 | `+404.marko` | Not-found page |
 | `+500.marko` | Error page |
 
-Routes live in `src/routes/` by default and map directly to URL paths.
+Routes live in `src/routes/` by default and map directly to URL paths. TypeScript route types are generated into `.marko-run/routes.d.ts` on build when a `tsconfig.json` is present.
 
 ## Pure Marko Mode (no `@marko/run`)
 
@@ -75,7 +117,7 @@ build({
   root: import.meta.dirname,
   routes: false,                     // skip the routing pipeline
   entry: "./src/index.ts",           // browser entry (hydration)
-  serverEntry: "./src/server.ts",    // your own server (default: ./src/server.ts)
+  serverEntry: "./src/server.ts",    // your own server
   mode: "production",
 });
 ```
@@ -101,30 +143,34 @@ export function close() {
 
 See [`examples/rspack-pure-marko`](./examples/rspack-pure-marko) for a complete working example.
 
-## Repository Commands
+## Limitations
 
-```bash
-# Build all packages
-npm run build
-
-# Build packages + run the example dev server
-npm run dev:example
-
-# Build packages + smoke-test the example
-npm run verify:example
-
-# Test route generation
-npm run test:routes
-
-# Sync vendored code from upstream @marko/run
-npm run sync:marko-run          # apply changes
-npm run sync:marko-run:check    # dry-run (no writes)
-```
+- Lazily loaded components — the [`load` import attribute](https://markojs.com/docs/reference/lazy-loading) — are not yet supported: they render on the server, but their JavaScript never reaches the browser, so they don't hydrate. Import components statically for now.
 
 ## Examples
 
 - **[`examples/rspack-basic`](./examples/rspack-basic)** — Multi-page app demonstrating static routes, dynamic segments, catch-all routes, layout groups, API handlers, and hot reload.
 - **[`examples/rspack-pure-marko`](./examples/rspack-pure-marko)** — Pure Marko app with `routes: false`: no `@marko/run`, custom server entry, SSR + hydration.
+
+## Developing markopack
+
+This repository is a pnpm workspace — use pnpm for all commands:
+
+```bash
+pnpm install
+pnpm run build            # build all packages
+pnpm run verify:example   # build + smoke-test the example app
+pnpm run test:routes      # route generation tests
+pnpm run test:contract    # generated match objects vs installed @marko/run runtime
+pnpm run test:adapters    # adapter build tests
+pnpm run test:crawler     # adapter-static crawler regression guard
+pnpm run test:dev-watch   # dev-server route watching / hot route discovery
+
+pnpm run sync:marko-run:check   # dry-run vendored-code sync from upstream @marko/run
+pnpm run bench:setup && pnpm run bench:perf
+```
+
+Releases are driven by [changesets](https://github.com/changesets/changesets): every user-visible change needs a `.changeset/*.md` file; merging the auto-opened "chore: release packages" PR publishes to npm from CI.
 
 ## Contributing
 

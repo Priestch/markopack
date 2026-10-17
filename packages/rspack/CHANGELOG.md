@@ -1,5 +1,37 @@
 # @markopack/rspack
 
+## 0.3.3
+
+### Patch Changes
+
+- f807958: Fix broken asset references in the fallback HTML
+
+  The fallback `index.html` injected `<script>`/`<link>` tags for every
+  entry the browser compiler saw, including the per-page entries
+  (`about_l24j`, `marko-run_Qime`, …) that MarkoRspackPlugin merges in.
+  Two problems: pages with nothing to hydrate compile to a 0-byte browser
+  chunk that the plugin then deletes, leaving script tags that 404; and
+  the remaining entries' JS/CSS were eagerly loaded on every page when
+  they belong to the runtime's per-route loading. The fallback HTML now
+  references only the `index` bootstrap entry — page assets are loaded
+  per-route through the link-assets manifest, as before. This also
+  removes the duplicate stylesheet (identical content, two `<link>`s)
+  that showed up on the index page.
+
+- f807958: Warn instead of silently swallowing recoverable build errors
+
+  - `@markopack/rspack`: when handler verb detection fails to read a
+    handler file (ENOENT race, permissions), the route silently matched
+    no HTTP method and 404ed with no trace of why — it now logs a warning
+    naming the file.
+  - `@markopack/adapter-static`: a failed copy of the browser `client/`
+    output into the crawled `public/` directory used to vanish entirely,
+    leaving pages referencing `/static/...` assets that 404ed (a missing
+    `client/` dir from a routes-only build stays silent); a failed
+    cleanup of the built server entry now reports itself too.
+  - @markopack/core@0.3.3
+  - @markopack/compiler@0.3.3
+
 ## 0.3.2
 
 ### Patch Changes

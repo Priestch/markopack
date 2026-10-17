@@ -1,6 +1,6 @@
 {
   "name": "@markopack/rspack",
-  "version": "0.3.2",
+  "version": "0.3.3",
   "description": "Direct rspack integration for @marko/run — zero framework overhead",
   "type": "module",
   "sideEffects": false,

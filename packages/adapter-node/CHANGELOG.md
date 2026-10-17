@@ -1,5 +1,11 @@
 # @markopack/adapter-node
 
+## 0.3.3
+
+### Patch Changes
+
+- @markopack/core@0.3.3
+
 ## 0.3.2
 
 ### Patch Changes

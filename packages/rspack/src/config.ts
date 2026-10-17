@@ -164,6 +164,12 @@ export function createConfigs(
     experiments: { css: true },
     output: {
       path: clientDist,
+      // Production builds start from an empty dist (Vite parity): without
+      // this, every rebuild leaves another wave of orphaned contenthash
+      // chunks behind. Dev keeps its output — watch mode only ever cleans
+      // at compiler start, but there's nothing stale to remove anyway
+      // (dev filenames carry no hash).
+      clean: mode === "production",
       filename:
         mode === "production" ? "static/js/[name].[contenthash:8].js" : "static/js/[name].js",
       chunkFilename:
@@ -258,6 +264,7 @@ export function createConfigs(
     entry: nodeEntry,
     output: {
       path: serverDist,
+      clean: mode === "production",
       filename: "[name].cjs",
       chunkFilename: "[name].chunk.cjs",
       chunkFormat: "commonjs",

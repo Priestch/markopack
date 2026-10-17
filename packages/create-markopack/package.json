@@ -1,6 +1,6 @@
 {
   "name": "create-markopack",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Create a new markopack project",
   "type": "module",
   "bin": {

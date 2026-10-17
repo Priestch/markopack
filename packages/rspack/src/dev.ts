@@ -187,8 +187,11 @@ export async function startDevServer(
       };
 
       // 带扩展名的 URL 先按静态资产服务；未命中落回 router——dot-path 路由
-      // （如插件产出的 /sitemap.xml）不能被静态查找吞成 404。
-      if (sirvFn && req.url && /\.\w+$/.test(req.url)) {
+      // （如 /sitemap.xml）不能被静态查找吞成 404。匹配用解析出的
+      // pathname，不是原始 req.url：带查询串的资产地址
+      // （/static/js/index.js?v=…）以查询参数结尾，用原始 URL 会漏进
+      // router 变 404。
+      if (sirvFn && pathname && /\.\w+$/.test(pathname)) {
         sirvFn(req, res, serveRouter);
         return;
       }

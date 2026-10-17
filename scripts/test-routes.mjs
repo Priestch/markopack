@@ -194,6 +194,37 @@ async function main() {
     }
   }
 
+  // Extension-suffixed routes must reach the router even though the dev
+  // server serves static assets first: /sitemap.xml is a handler route
+  // (escaped-dot directory name), not a file in dist/client.
+  {
+    let ok = false;
+    try {
+      const res = await fetch(`http://127.0.0.1:${port}/sitemap.xml`);
+      const text = await res.text();
+      ok = res.status === 200 && text.includes("<urlset");
+    } catch {}
+    console.log(`  ${ok ? "ok  " : "FAIL"} dot-path route /sitemap.xml reaches the router`);
+    ok ? passed++ : failed++;
+  }
+
+  // Asset URLs with a query string must still be served by sirv — the
+  // extension check runs against the parsed pathname, and a raw-URL check
+  // would send `...css?v=1` to the router (404).
+  {
+    let ok = false;
+    try {
+      const page = await (await fetch(`http://127.0.0.1:${port}/about`)).text();
+      const href = page.match(/<link rel="stylesheet" href="([^"]+\.css)"/)?.[1];
+      if (href) {
+        const res = await fetch(`http://127.0.0.1:${port}${href}?v=abc123`);
+        ok = res.status === 200 && (await res.text()).includes(".style-probe-nested-component");
+      }
+    } catch {}
+    console.log(`  ${ok ? "ok  " : "FAIL"} asset with query string serves from dist/client`);
+    ok ? passed++ : failed++;
+  }
+
   await stopProcess(proc);
 
   console.log(`\n  ${passed} passed, ${failed} failed, ${passed + failed} total`);

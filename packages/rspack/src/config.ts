@@ -162,6 +162,15 @@ export function createConfigs(
     // extraction only function with the css experiment on — without it the
     // css/auto type is inert and no stylesheet is ever emitted.
     experiments: { css: true },
+    // One shared runtime chunk for every entry. Page entries and
+    // lazy-component load entries must hydrate against the SAME runtime
+    // module instances: the load-entry chunk signals readiness via the
+    // dom runtime's ready(), whose readyIds set is module-level state.
+    // With rspack's default per-entry inline runtime each entry gets its
+    // own copy and the ready handshake never crosses entries.
+    optimization: {
+      runtimeChunk: "single",
+    },
     output: {
       path: clientDist,
       // Production builds start from an empty dist (Vite parity): without

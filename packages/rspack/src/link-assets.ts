@@ -7,13 +7,16 @@ interface AssetEntry {
 }
 
 /**
- * Builds the page asset manifest (page template id → html tags for its
- * browser chunks) and injects it into the emitted server bundle, replacing
- * the placeholder inside the bundled link-assets runtime.
+ * Builds the asset manifest — page entries (page template id → html tags
+ * for their browser chunks) and lazy-component entries (readyId → tags for
+ * the load-entry chunk + the component's css) — and injects it into the
+ * emitted server bundle, replacing the placeholder inside the bundled
+ * link-assets runtime.
  *
  * Runs after the MultiCompiler finishes: the server compiler discovers page
- * entries during its build, the browser compiler then emits their chunks —
- * only at that point are the final file names (with content hashes) known.
+ * and load entries during its build, the browser compiler then emits their
+ * chunks — only at that point are the final file names (with content
+ * hashes) known.
  *
  * The web build's publicPath is "/" (see config.ts), so asset urls are
  * root-absolute.
@@ -26,6 +29,7 @@ export function buildLinkAssetsManifest(
   ).__markopack_page_assets__;
 
   const entries = markoPlugin.discoveredClientEntries;
+  const loadEntries = markoPlugin.discoveredLoadEntries;
   const assetsByCompiler = markoPlugin.collectedClientAssets;
 
   const manifest: Record<string, AssetEntry> = {};
@@ -48,6 +52,32 @@ export function buildLinkAssetsManifest(
       block: css.map((f) => `<link rel="stylesheet" href="/${f}">`).join(""),
       defer: js
         .map((f) => `<script type="module" src="/${f}"></script>`)
+        .join(""),
+    };
+  }
+
+  // Lazy components (`with { load: ... }`): keyed by readyId — what the
+  // SSR runtime flushes when it wraps the tag with withLoadAssets. The
+  // block links the component's css (from the async chunk the load entry
+  // imports); the defer loads the load-entry chunk, which imports the
+  // component and calls ready(readyId) to unblock hydration. `async`
+  // matters: the trigger script (idle/visible/…) may inject this long
+  // after parse.
+  for (const [entryName, { readyId }] of Object.entries(loadEntries)) {
+    const js: string[] = [];
+    const css: string[] = [];
+    for (const compilerAssets of Object.values(assetsByCompiler)) {
+      const byExt = compilerAssets[entryName];
+      if (!byExt) continue;
+      js.push(...(byExt.js ?? []));
+      css.push(...(byExt.css ?? []));
+      css.push(...(byExt.asyncCss ?? []));
+    }
+
+    manifest[readyId] = {
+      block: css.map((f) => `<link rel="stylesheet" href="/${f}">`).join(""),
+      defer: js
+        .map((f) => `<script async type="module" src="/${f}"></script>`)
         .join(""),
     };
   }

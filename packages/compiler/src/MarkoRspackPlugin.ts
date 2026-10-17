@@ -37,6 +37,7 @@ export default class MarkoRspackPlugin {
   private serverCompiler: CompilerType | null = null;
   private browserCompilers: CompilerType[] = [];
   private clientEntries: Record<string, string> = {};
+  private loadEntries: Record<string, { file: string; readyId: string }> = {};
   private clientAssets: Record<
     string,
     Record<string, Record<string, string[]>>
@@ -105,6 +106,12 @@ export default class MarkoRspackPlugin {
   /** Page entry modules discovered on the server compiler (id → resource with ?browser-entry). */
   get discoveredClientEntries(): Record<string, string> {
     return this.clientEntries;
+  }
+
+  /** Lazy-component load entries discovered on the server compiler
+   * (browser entry name → component file + its readyId). */
+  get discoveredLoadEntries(): Record<string, { file: string; readyId: string }> {
+    return this.loadEntries;
   }
 
   /** Browser compilation output files per entry (compiler name → entry id → files by extension). */
@@ -212,24 +219,65 @@ export default class MarkoRspackPlugin {
           (modules: Iterable<Module>) => {
             let hasChangedEntries = false;
             const removedEntryIds = new Set(Object.keys(this.clientEntries));
+            // Every .marko file in this compilation — used to filter the
+            // process-global load registry down to this app's lazy
+            // components (the registry only grows and accumulates across
+            // multiple in-process builds).
+            const moduleFiles = new Set<string>();
 
             for (const mod of modules) {
               const resource = (mod as Module & { resource?: string }).resource;
-              if (!resource?.endsWith('.marko?server-entry')) {
+              if (!resource) {
                 continue;
               }
 
-              this.needsManifestSync = true;
-              const filename = resource.replace(/\?server-entry$/, '');
-              // Entry names become output filenames — strip leading dots
-              // (e.g. ".marko-run" parent dir) that static hosts treat as
-              // hidden files.
-              const entryTemplateId = moduleName(filename).replace(/^\.+/, '');
+              if (resource.endsWith('.marko?server-entry')) {
+                this.needsManifestSync = true;
+                const filename = resource.replace(/\?server-entry$/, '');
+                moduleFiles.add(filename);
+                // Entry names become output filenames — strip leading dots
+                // (e.g. ".marko-run" parent dir) that static hosts treat as
+                // hidden files.
+                const entryTemplateId = moduleName(filename).replace(/^\.+/, '');
 
-              if (!removedEntryIds.delete(entryTemplateId)) {
-                hasChangedEntries = true;
-                this.clientEntries[entryTemplateId] =
-                  `${filename}?browser-entry`;
+                if (!removedEntryIds.delete(entryTemplateId)) {
+                  hasChangedEntries = true;
+                  this.clientEntries[entryTemplateId] =
+                    `${filename}?browser-entry`;
+                }
+              } else if (/\.marko(\?.*)?$/.test(resource)) {
+                moduleFiles.add(resource.replace(/\?.*$/, ''));
+              }
+            }
+
+            // Lazy-component load entries: the loader recorded readyIds for
+            // every `with { load: ... }` import during compilation. Each
+            // becomes a browser entry compiled with `entry: "load"` whose
+            // chunk, when loaded, imports the component and signals
+            // ready(readyId) to unblock hydration of its subtree.
+            const loadRegistry: Map<string, string> | undefined = (
+              globalThis as any
+            ).__markopack_load_assets__;
+            const removedLoadIds = new Set(Object.keys(this.loadEntries));
+            if (loadRegistry) {
+              for (const [file, readyId] of loadRegistry) {
+                if (!moduleFiles.has(file)) {
+                  continue; // stale or from another app in this process
+                }
+
+                const entryName =
+                  moduleName(file).replace(/^\.+/, '') + '_load';
+                if (!removedLoadIds.delete(entryName)) {
+                  hasChangedEntries = true;
+                }
+                this.loadEntries[entryName] = { file, readyId };
+              }
+            }
+            for (const removedLoadId of removedLoadIds) {
+              hasChangedEntries = true;
+              delete this.loadEntries[removedLoadId];
+              for (const compilerName in this.clientAssets) {
+                delete this.clientAssets[compilerName][removedLoadId];
               }
             }
 
@@ -268,6 +316,9 @@ export default class MarkoRspackPlugin {
         normalizedEntries[key] = {
           import: [this.clientEntries[key]],
         };
+      }
+      for (const [name, { file }] of Object.entries(this.loadEntries)) {
+        normalizedEntries[name] = { import: [`${file}?load-entry`] };
       }
 
       if (typeof entryOption === 'function') {
@@ -314,6 +365,21 @@ export default class MarkoRspackPlugin {
                   const type = assetsByType[ext] || [];
                   assetsByType[ext] = type;
                   type.push(file);
+                }
+
+                // CSS reachable only through async chunks — e.g. a lazy
+                // component's styles, which its load entry pulls via
+                // import(). Kept in a separate bucket: page manifests read
+                // only the initial `css` list so lazy-component CSS is
+                // never eagerly linked from a page's <head>.
+                const asyncCss =
+                  assetsByType.asyncCss ?? (assetsByType.asyncCss = []);
+                for (const asyncChunk of chunk.getAllAsyncChunks()) {
+                  for (const file of asyncChunk.files) {
+                    if (file.endsWith('.css') && !asyncCss.includes(file)) {
+                      asyncCss.push(file);
+                    }
+                  }
                 }
               }
 

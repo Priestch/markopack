@@ -156,7 +156,18 @@ export default function staticAdapter(options: Options = {}): Adapter {
             recursive: true,
             filter: (src) => path.basename(src) !== "index.html",
           })
-          .catch(() => {});
+          .catch((err) => {
+            // A failed copy used to be swallowed whole: crawled pages then
+            // referenced /static/... assets that 404ed with no build-time
+            // hint. (A missing client dir is fine — routes-only builds
+            // have no browser assets to merge.)
+            if ((err as NodeJS.ErrnoException).code !== "ENOENT") {
+              console.warn(
+                `[markopack:adapter-static] copying browser assets from ${clientDir} failed:`,
+                err instanceof Error ? err.message : err,
+              );
+            }
+          });
 
         const mod = await import(pathToFileURL(builtEntries[0]).href);
         const fetch: Fetch = mod.fetch || mod.default?.fetch;
@@ -219,7 +230,14 @@ export default function staticAdapter(options: Options = {}): Adapter {
       }
 
       for (const file of builtEntries) {
-        await fs.rm(file, { maxRetries: 5 }).catch(() => {});
+        await fs.rm(file, { maxRetries: 5 }).catch((err) => {
+          // Cleanup only — the crawl already succeeded — but say so
+          // instead of leaving a mystery server bundle behind in dist.
+          console.warn(
+            `[markopack:adapter-static] could not remove built server entry ${file}:`,
+            err instanceof Error ? err.message : err,
+          );
+        });
       }
     },
   };

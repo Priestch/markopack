@@ -1,5 +1,6 @@
-import { mkdir, writeFile } from "node:fs/promises";
-import { join } from "node:path";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import type { TemplateOptions } from "./templates.js";
 import * as t from "./templates.js";
 
@@ -10,8 +11,18 @@ export async function scaffold(targetDir: string, opts: TemplateOptions) {
 
   const ext = opts.typescript ? ".ts" : ".js";
 
+  // The scaffold's own version doubles as the @markopack/* dependency range
+  // (all packages version together). Read it from the package.json next to
+  // the running code — dist/ layout keeps it one level up, same as src/.
+  const ownPkg = JSON.parse(
+    await readFile(
+      join(dirname(fileURLToPath(import.meta.url)), "..", "package.json"),
+      "utf-8",
+    ),
+  ) as { version: string };
+
   const files: [string, string][] = [
-    ["package.json", t.packageJson(opts)],
+    ["package.json", t.packageJson(opts, ownPkg.version)],
     ["dev.mjs", t.devMjs(opts)],
     ["build.mjs", t.buildMjs(opts)],
     ["preview.mjs", t.previewMjs(opts)],

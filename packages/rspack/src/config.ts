@@ -249,6 +249,14 @@ export function createConfigs(
         template: htmlTemplate(root),
         inject: "head",
         scriptLoading: "module",
+        // Only the bootstrap entry belongs in the fallback HTML. The page
+        // entries MarkoRspackPlugin merges in (about_l24j, marko-run_Qime, …)
+        // are loaded per-route at runtime through the link-assets manifest —
+        // and injecting them here both eagerly loads every page's JS/CSS and
+        // references empty browser chunks the plugin deletes after
+        // afterProcessAssets (pages with nothing to hydrate compile to a
+        // 0-byte script), leaving 404 script tags behind.
+        chunks: ["index"],
       }),
       new rspack.CssExtractRspackPlugin(),
     ],

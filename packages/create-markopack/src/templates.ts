@@ -8,21 +8,29 @@ export interface TemplateOptions {
 
 const ext = (opts: TemplateOptions) => (opts.typescript ? ".ts" : ".js");
 
-export function packageJson(opts: TemplateOptions): string {
+export function packageJson(opts: TemplateOptions, version: string): string {
+  // All markopack packages version together, so the scaffold's own version
+  // (passed in by scaffold.ts) is also the version of every @markopack/*
+  // dependency below — a hardcoded range here would drift the moment a
+  // release ships.
+  const markopackRange = `^${version}`;
   const deps: Record<string, string> = {
     marko: "^6.0.0",
     "@marko/runtime-tags": "^6.0.0",
   };
   const devDeps: Record<string, string> = {
-    "@markopack/rspack": "^0.1.0",
+    "@markopack/rspack": markopackRange,
+    // preview.mjs imports the middleware directly — without this, resolution
+    // relies on hoisting and fails under pnpm's default strict node_modules.
+    "@markopack/core": markopackRange,
   };
 
   if (opts.adapter === "node") {
     deps.sirv = "^3.0.1";
   } else if (opts.adapter === "static") {
-    devDeps["@markopack/adapter-static"] = "^0.1.0";
+    devDeps["@markopack/adapter-static"] = markopackRange;
   } else if (opts.adapter === "netlify") {
-    devDeps["@markopack/adapter-netlify"] = "^0.1.0";
+    devDeps["@markopack/adapter-netlify"] = markopackRange;
   }
 
   return JSON.stringify(

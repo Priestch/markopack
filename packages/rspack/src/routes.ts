@@ -185,7 +185,14 @@ async function detectHandlerVerbs(filePath: string): Promise<HttpVerb[]> {
       }
     }
     return verbs;
-  } catch {
+  } catch (err) {
+    // Read failure (ENOENT race, permissions) silently produced an empty
+    // verb list before — the route then matched no method and 404ed with
+    // no trace of why. Warn and fall back to "handler with no verbs".
+    console.warn(
+      `[markopack] failed to read handler exports from ${filePath}:`,
+      err instanceof Error ? err.message : err,
+    );
     return [];
   }
 }

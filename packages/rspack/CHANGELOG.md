@@ -1,5 +1,67 @@
 # @markopack/rspack
 
+## 0.3.0
+
+### Minor Changes
+
+- fb24dfc: dev: full-reload support — SSE channel `/__markopack_reload`, a reload client injected into the first HTML chunk served through the router, and a debounced reload broadcast whenever either compiler finishes a clean rebuild (plus a second broadcast after the server bundle is swapped in, so a reload never lands on a stale bundle).
+- cac7947: Load an optional rspack.config.{ts,mts,cts,js,mjs,cjs} from the app root
+
+  Apps can now define an rspack config file that merges with markopack's
+  generated configs. An object export merges into the browser config —
+  arrays (module.rules, plugins) concatenate with the generated ones,
+  plain objects shallow-merge, everything else replaces. A function
+  export receives every generated config, `(config, side) => config`,
+  for per-side control (the programmatic `rspack` option from before
+  still applies last).
+
+  Preprocessor rules (sass, less, …) belong here rather than in
+  markopack's defaults — `sass`/`sass-loader` are no longer dependencies
+  of `@markopack/rspack`. The basic example demonstrates this: it adds
+  its sass rule via `rspack.config.mjs` with app-local `sass` +
+  `sass-loader` devDependencies.
+
+### Patch Changes
+
+- 6aca808: Fix component CSS extraction: enable experiments.css, wire configs to the app root
+
+  The style-extraction rules shipped inert: `experiments.css` was never
+  enabled (so `type: "css/auto"` was a no-op and no stylesheet was ever
+  emitted), and the CssExtract loader in `use` is the legacy webpack path,
+  not the experimental native-css one. Rules now use `type: "css"` with
+  only lightningcss in `use`.
+
+  Intra-workspace dependencies were also resolving to published npm
+  tarballs instead of the workspace sources (semver ranges +
+  `linkWorkspacePackages` lost to a lockfile pinned to registry tarballs),
+  so local loader fixes silently never ran. All intra-repo deps are now
+  `workspace:*`.
+
+  Both generated configs set `context: root` — without it rspack anchored
+  resolution to `process.cwd()`, making bare loader names and relative
+  paths depend on where the build was launched from.
+
+- fb24dfc: dev: extension-suffixed URLs that miss the static asset dir now fall through to the router instead of 404ing — required for dot-path routes (e.g. plugin-generated `/sitemap.xml`).
+- 939d286: Fix build() hanging forever when post-compile steps throw; DevServer.close() now awaits shutdown
+
+  `build()`'s `compiler.close` callback is async — an error thrown by the
+  link-assets manifest injection or an adapter's `buildEnd` rejected that
+  callback's promise unhandled, leaving the promise returned by `build()`
+  unsettled: callers awaited it forever with only a stray unhandled-
+  rejection warning. The callback now catches and rejects (verified: a
+  throwing adapter rejects in <1s instead of hanging).
+
+  `DevServer.close()` also awaited nothing after stopping the watcher —
+  `server.close()` was fire-and-forget, and its callback only fires after
+  keep-alive connections drain. It now destroys open connections
+  (`closeAllConnections`) and awaits the server's close callback.
+
+- 2f61bfe: Fix extracted `<style>` blocks end to end. compiler: pass `resolveVirtualDependency` for all compile outputs, not just hydrate, so styles materialize as virtual `.css`/`.scss` files instead of being silently dropped; materialized files keep their own extension. rspack: css rules now use rspack's native css modules (`type: "css/auto"`) with `output.cssFilename`/`cssChunkFilename` naming — the previous `javascript/auto` + plugin `filename` options emitted css next to js chunks under `static/js/` or failed to parse as JS; `.scss`-typed style blocks compile via sass-loader (new dependency).
+- Updated dependencies [939d286]
+- Updated dependencies [2f61bfe]
+  - @markopack/core@0.3.0
+  - @markopack/compiler@0.3.0
+
 ## 0.2.2
 
 ### Patch Changes

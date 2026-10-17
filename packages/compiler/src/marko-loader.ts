@@ -27,8 +27,19 @@ const linkAssetsRuntimePath = fileURLToPath(
 const ASSET_ID_REGISTRY = (globalThis as any).__markopack_page_assets__ ??=
   new Map<string, string>();
 
-function onAsset(_kind: string, filename: string, assetId: string): void {
-  ASSET_ID_REGISTRY.set(filename, assetId);
+// Ready ids (filename → readyId) of lazily imported components
+// (`with { load: ... }`), recorded by onAsset("load", ...). Separate from
+// the page registry so a file that is both a route page and a lazy target
+// can't have its templateId clobbered by its readyId.
+const LOAD_ASSET_REGISTRY = (globalThis as any).__markopack_load_assets__ ??=
+  new Map<string, string>();
+
+function onAsset(kind: string, filename: string, assetId: string): void {
+  if (kind === 'load') {
+    LOAD_ASSET_REGISTRY.set(filename, assetId);
+  } else {
+    ASSET_ID_REGISTRY.set(filename, assetId);
+  }
 }
 
 /**
@@ -59,7 +70,20 @@ function makeResolveVirtualDependency(root: string) {
     )}${path.extname(dep.virtualPath) ? '' : '.js'}`;
     const file = path.join(virtualDir, name);
     fs.mkdirSync(virtualDir, { recursive: true });
-    fs.writeFileSync(file, dep.code);
+    // The translator emits relative imports resolved against the virtual
+    // path's directory (e.g. a load-signal module importing its component
+    // as "./x.marko" next to where virtualPath points). The flattened
+    // cache file lives elsewhere, so rewrite relative specifiers to
+    // absolute paths before writing.
+    const virtualModuleDir = path.dirname(
+      path.resolve(path.dirname(from), dep.virtualPath),
+    );
+    const code = dep.code.replace(
+      /(from\s*|import\s*\(\s*|import\s+)("|')((?:\.\.?\/)[^"']+)\2/g,
+      (_m, prefix: string, quote: string, specifier: string) =>
+        `${prefix}${quote}${path.join(virtualModuleDir, specifier)}${quote}`,
+    );
+    fs.writeFileSync(file, code);
     return file;
   };
 }
@@ -75,18 +99,23 @@ export default function markoLoader(
   const query = this.resourceQuery || '';
   const isServerEntry = /^\?server-entry/.test(query);
   const isBrowserEntry = /^\?browser-entry/.test(query);
+  const isLoadEntry = /^\?load-entry/.test(query);
 
   // Route page entries compile with `entry: "page"` so the translator wraps
   // them with asset-flushing code (server) or builds the page's DOM output
-  // (browser). `linkAssets` is passed for all compiles so that templates
-  // containing <head> emit the flush marker and load-triggered components
-  // stay instrumented.
+  // (browser). `?load-entry` compiles a lazily imported component with
+  // `entry: "load"`: a tiny module that dynamic-imports the component and
+  // signals the hydration runtime via ready(readyId). `linkAssets` is passed
+  // for all compiles so that templates containing <head> emit the flush
+  // marker and load-triggered components stay instrumented.
   const isServer = !isBrowserEntry;
   const outputFormat = isBrowserEntry
     ? 'hydrate'
     : isServerEntry
       ? 'html'
-      : options.output || 'dom';
+      : isLoadEntry
+        ? 'dom'
+        : options.output || 'dom';
 
   const compilerPath = options.compiler;
   const translator = options.translator || bundledTranslator;
@@ -111,6 +140,7 @@ export default function markoLoader(
           ? { linkAssets: { runtime: linkAssetsRuntimePath, onAsset } }
           : {}),
         ...((isServerEntry || isBrowserEntry) ? { entry: 'page' as const } : {}),
+        ...(isLoadEntry ? { entry: 'load' as const } : {}),
         // All outputs: the translator reports virtual dependencies through
         // this callback — hydrate boundaries (browser), and extracted
         // <style> blocks as `<file>.marko.css` deps (any output). Without

@@ -91,6 +91,20 @@ The adapters are peers of this chain, not dependents of `@markopack/rspack`: `ad
 - **All other packages**: `tsc -p tsconfig.json`.
 - **Node engines**: `@markopack/rspack`, `@markopack/compiler`, and `create-markopack` require Node >=20.19.0 || >=22.12.0.
 
+## Release Process
+
+Releases are driven by [changesets](https://github.com/changesets/changesets) + `.github/workflows/release.yml`, which runs on every push to `main`:
+
+1. **Every user-visible change needs a changeset** — a file in `.changeset/*.md` with `patch`/`minor`/`major` bump frontmatter and a description. Commits without one ship silently in the next release.
+2. **Push to main with pending changesets** → the workflow runs `pnpm run version` (`changeset version`: consumes the changesets, bumps package versions, updates CHANGELOGs) and opens/updates the **"chore: release packages"** PR from branch `changeset-release/main`.
+3. **Merge that PR** → the next workflow run finds no pending changesets, so it runs `pnpm run release` (`pnpm run build && changeset publish`), publishes all bumped packages to npm, and pushes git tags (`@markopack/rspack@x.y.z` …).
+4. There is no manual `npm publish` step — local `changeset publish` is never run; the npm publish happens only in CI.
+
+Preconditions that silently block the release PR (the workflow fails before changesets/action runs):
+
+- `pnpm install --frozen-lockfile` (pnpm **12**, per the workflow) must pass: commit `pnpm-lock.yaml` together with any `package.json` change, regenerated with pnpm 12 (a local pnpm 9 can write an incompatible lockfile). CI also runs this in `ci.yml` — a red Actions tab means no release PR.
+- Dependencies with install scripts must be listed under `allowBuilds` in `pnpm-workspace.yaml`, otherwise pnpm 12 hard-fails with `ERR_PNPM_IGNORED_BUILDS` (this broke releases for both `2f61bfe` and `cac7947`).
+
 ## Release State
 
-The npm packages lag the repo: published `@markopack/rspack` 0.2.2 predates the crawler concurrency fix, hot route discovery, dev full-reload, and the dev dot-path fallthrough (pending changesets). The sibling repo `markopress` therefore consumes markopack via `pnpm link:` — local edits here take effect there immediately, and refactors must account for that consumer.
+The npm packages lag the repo: published `@markopack/rspack` 0.2.2 predates the crawler concurrency fix, hot route discovery, dev full-reload, the dev dot-path fallthrough, the css-extraction fix, and `rspack.config.*` support (pending changesets — the next release will be a `rspack` minor). The sibling repo `markopress` therefore consumes markopack via `pnpm link:` — local edits here take effect there immediately, and refactors must account for that consumer.

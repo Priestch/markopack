@@ -22,7 +22,7 @@ export interface CreateConfigsOptions {
 
 const markoRunRuntimeFiles = new Map<string, string>();
 
-function markoRunRuntimeFile(name: "internal" | "client"): string {
+function markoRunRuntimeFile(name: "internal" | "client" | "router"): string {
   let file = markoRunRuntimeFiles.get(name);
   if (file) return file;
   let runRoot: string;
@@ -85,11 +85,21 @@ export function createConfigs(
   const clientDist = path.join(outputDir, "client");
   const serverDist = path.join(outputDir, "server");
 
-  const resolveConfig: Configuration["resolve"] = {
+  // The two compilers diverge on `@marko/run/router`: the web build always
+  // aliases it straight to the generated router, and so does the server
+  // build. In DEV the server build serves it through the runtime's router
+  // FACADE instead — importer-aware, see routerFacadePlugin below — so app
+  // code reachable from middleware can't create an evaluation cycle with
+  // the generated router (which imports that code back through its routes).
+  const baseResolve = {
     extensions: [".ts", ".js", ".json"],
     extensionAlias: {
       ".js": [".ts", ".js"],
     },
+    tsConfig: tsConfigPath(root),
+  };
+  const webResolveConfig: Configuration["resolve"] = {
+    ...baseResolve,
     alias: routesEnabled
       ? {
           "@marko/run/router": routerPath,
@@ -98,8 +108,37 @@ export function createConfigs(
           "virtual:marko-run": entryFilesDir,
         }
       : undefined,
-    tsConfig: tsConfigPath(root),
   };
+  const nodeResolveConfig: Configuration["resolve"] = {
+    ...baseResolve,
+    alias: routesEnabled
+      ? {
+          ...(mode === "production" ? { "@marko/run/router": routerPath } : {}),
+          "virtual:marko-run/runtime/internal": markoRunRuntimeInternal(),
+          "virtual:marko-run/runtime/client": markoRunRuntimeClient(),
+          "virtual:marko-run": entryFilesDir,
+        }
+      : undefined,
+  };
+
+  // Dev-only importer-aware `@marko/run/router`: everything but the facade
+  // itself gets the facade (which defers to globalThis.__marko_run__, set
+  // when the generated router entry evaluates); the facade's own dynamic
+  // import must land on the real router or it would chase its own tail.
+  const routerFacadePlugin =
+    routesEnabled && mode === "development"
+      ? new rspack.NormalModuleReplacementPlugin(
+          /^@marko\/run\/router$/,
+          (resource: any) => {
+            const facade = markoRunRuntimeFile("router");
+            const issuer: string | undefined = resource.contextInfo?.issuer;
+            resource.request =
+              issuer && path.normalize(issuer) === facade
+                ? routerPath
+                : facade;
+          },
+        )
+      : undefined;
 
   // Each compiler gets its OWN VirtualModulesPlugin instance: apply()
   // stores a single compiler reference on the plugin, so spreading one
@@ -215,7 +254,7 @@ export function createConfigs(
           : "static/css/[name].chunk.css",
       publicPath: "/",
     },
-    resolve: resolveConfig,
+    resolve: webResolveConfig,
     module: {
       rules: [
         {
@@ -308,7 +347,7 @@ export function createConfigs(
       library: { type: "commonjs2" },
       module: false,
     },
-    resolve: resolveConfig,
+    resolve: nodeResolveConfig,
     module: {
       rules: [
         {
@@ -349,6 +388,7 @@ export function createConfigs(
     },
     plugins: [
       ...routePlugins(nodeVirtualModules),
+      ...(routerFacadePlugin ? [routerFacadePlugin] : []),
       new rspack.DefinePlugin({
         "process.env.NODE_ENV": JSON.stringify(mode),
       }),

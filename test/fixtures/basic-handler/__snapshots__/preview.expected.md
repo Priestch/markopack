@@ -1,6 +1,6 @@
 # Loading
 
 ```html
-Data from handler
+Data from handler (router matched)
 ```
 

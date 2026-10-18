@@ -19,6 +19,8 @@ import type { MarkoRunRspackOptions, RouteBuildResult } from "./routes.js";
 const projectRequire = createRequire(import.meta.url);
 
 export interface DevServer {
+  /** Actual listening port (0 in pure-Marko mode, where the entry owns it). */
+  port: number;
   close(): Promise<void>;
 }
 
@@ -143,6 +145,10 @@ export async function startDevServer(
   }
 
   let server: http.Server | null = null;
+  // Actual listening port — findFreePort may bump the requested one, so the
+  // caller (e.g. the fixture harness) reads it from the DevServer instead of
+  // assuming. Stays 0 in pure-Marko mode, where the user entry owns the port.
+  let actualPort = 0;
 
   if (opts.routes) {
     // Imported lazily (and directly from @marko/run, which esbuild keeps
@@ -211,7 +217,7 @@ export async function startDevServer(
 
     const networkAddr = getNetworkAddress();
 
-    const actualPort = await findFreePort(port);
+    actualPort = await findFreePort(port);
     server.listen(actualPort);
 
     console.log();
@@ -292,6 +298,7 @@ export async function startDevServer(
   }
 
   return {
+    port: actualPort,
     async close() {
       routesWatcher?.close();
       await new Promise<void>((resolve) => {

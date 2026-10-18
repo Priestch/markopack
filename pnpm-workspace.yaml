@@ -1,6 +1,7 @@
 packages:
   - packages/*
   - examples/*
+  - test
 # 库内互依写的是发布版本区间（^0.2.x），pnpm 默认不把 workspace 包链接到
 # 区间 spec 上——必须显式打开，否则 packages/rspack 解析到 pnpm store 里
 # 已发布的 npm 副本，本地改动永远不生效。

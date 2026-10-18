@@ -6,3 +6,4 @@ examples/*/.marko-run/
 .rsdoctor/
 .rspack-profile-*
 .codex
+test/.work/

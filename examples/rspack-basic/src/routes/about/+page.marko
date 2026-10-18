@@ -1,9 +1,13 @@
 import StyleProbe from "../../components/style-probe.marko";
+import RunHrefProbe from "../../components/run-href-probe.marko";
 
 <StyleProbe />
+<RunHrefProbe />
 
 <section class="card">
   <h1 style="margin-top: 0;">About</h1>
   <p class="lead">This is a static directory route backed by <code>src/routes/about/+page.marko</code>.</p>
+  <!-- SSR-side Run.href: resolves via globalThis.Run set by the server runtime. -->
+  <a class="route-link" href=Run.href("/products/$id", { params: { id: "17" } }) style="max-width: 220px;"><strong>Typed product link</strong><span>href built with Run.href at render time</span></a>
   <a class="route-link" href="/" style="max-width: 220px;"><strong>Back home</strong><span>Return to route atlas</span></a>
 </section>

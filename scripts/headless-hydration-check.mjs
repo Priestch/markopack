@@ -2,13 +2,18 @@
 // Headless-Chrome hydration probe driven over CDP (zero deps — uses the
 // global WebSocket available in Node >= 22). Usage:
 //   node headless-hydration-check.mjs <url> <selector> <expected-attr> [ms]
+//   node headless-hydration-check.mjs <url> <selector> <attr> <expected-value> [ms]
 // Exits 0 when the element matching <selector> ends up with <expected-attr>
-// set (proof the hydration effect ran), 1 otherwise.
+// set (proof the hydration effect ran) — and, when <expected-value> is
+// given, exactly equal to it. Exits 1 otherwise.
 import { spawn } from "node:child_process";
 
-const [url, selector, attr, waitMs = "6000"] = process.argv.slice(2);
+const [url, selector, attr, maybeExpected, maybeWait] = process.argv.slice(2);
+const hasExpected = maybeExpected !== undefined && !/^\d+$/.test(maybeExpected);
+const expected = hasExpected ? maybeExpected : undefined;
+const waitMs = hasExpected ? (maybeWait ?? "6000") : (maybeExpected ?? "6000");
 if (!url || !selector || !attr) {
-  console.error("usage: headless-hydration-check.mjs <url> <selector> <attr> [ms]");
+  console.error("usage: headless-hydration-check.mjs <url> <selector> <attr> [expected-value] [ms]");
   process.exit(2);
 }
 
@@ -73,7 +78,8 @@ try {
   const value = result?.value;
 
   console.log(`${selector}[${attr}] = ${JSON.stringify(value)}`);
-  process.exitCode = value !== null ? 0 : 1;
+  const pass = expected !== undefined ? value === expected : value !== null;
+  process.exitCode = pass ? 0 : 1;
 } catch (err) {
   console.error(err.message);
   process.exitCode = 1;

@@ -30,6 +30,13 @@ export interface MarkoPluginOptions {
   babelConfig?: Record<string, unknown>;
   /** Direct entry points — bypasses setup() API when provided. */
   entries?: { web?: Configuration['entry']; node?: Configuration['entry'] };
+  /**
+   * Modules prepended to every browser entry's import list (page entries
+   * and host-provided entries, not lazy load entries — those load after a
+   * page entry has already run them). Used to bootstrap globals that
+   * hydrated code relies on, e.g. @marko/run's `window.Run`.
+   */
+  browserEntryImports?: string[];
 }
 
 export default class MarkoRspackPlugin {
@@ -311,10 +318,11 @@ export default class MarkoRspackPlugin {
         await this.entriesReady;
       }
 
+      const entryImports = this.options.browserEntryImports ?? [];
       const normalizedEntries: Record<string, { import: string[] }> = {};
       for (const key in this.clientEntries) {
         normalizedEntries[key] = {
-          import: [this.clientEntries[key]],
+          import: [...entryImports, this.clientEntries[key]],
         };
       }
       for (const [name, { file }] of Object.entries(this.loadEntries)) {
@@ -323,11 +331,11 @@ export default class MarkoRspackPlugin {
 
       if (typeof entryOption === 'function') {
         const currentEntry = await entryOption();
-        return { ...currentEntry, ...normalizedEntries };
+        return { ...this.prependEntryImports(currentEntry), ...normalizedEntries };
       }
 
       if (typeof entryOption === 'object' && !Array.isArray(entryOption)) {
-        return { ...entryOption, ...normalizedEntries };
+        return { ...this.prependEntryImports(entryOption), ...normalizedEntries };
       }
 
       return normalizedEntries;
@@ -401,6 +409,36 @@ export default class MarkoRspackPlugin {
         );
       },
     );
+  }
+
+  /**
+   * Prepends `browserEntryImports` to every host-provided browser entry,
+   * normalizing shorthand forms (string, string[]) along the way. Returns
+   * the input untouched when the option is not set.
+   */
+  private prependEntryImports<T extends object>(entries: T): T {
+    const prefix = this.options.browserEntryImports;
+    if (!prefix?.length) return entries;
+
+    const result = { ...entries } as Record<string, unknown>;
+    for (const name of Object.keys(result)) {
+      const desc = result[name];
+      if (typeof desc === 'string') {
+        result[name] = { import: [...prefix, desc] };
+      } else if (Array.isArray(desc)) {
+        result[name] = { import: [...prefix, ...desc] };
+      } else if (desc && typeof desc === 'object') {
+        const { import: imports, ...rest } = desc as {
+          import?: unknown;
+          [key: string]: unknown;
+        };
+        result[name] = {
+          ...rest,
+          import: [...prefix, ...(Array.isArray(imports) ? imports : [])],
+        };
+      }
+    }
+    return result as T;
   }
 
   private normalizeRuntimeId(id: string): string {

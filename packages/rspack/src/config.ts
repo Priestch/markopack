@@ -20,28 +20,35 @@ export interface CreateConfigsOptions {
   serverEntry?: string;
 }
 
-let markoRunRuntimeInternalCache: string | undefined;
+const markoRunRuntimeFiles = new Map<string, string>();
+
+function markoRunRuntimeFile(name: "internal" | "client"): string {
+  let file = markoRunRuntimeFiles.get(name);
+  if (file) return file;
+  let runRoot: string;
+  try {
+    runRoot = projectRequire
+      .resolve("@marko/run")
+      .replace(/(src|dist)[\\/]runtime[\\/].*$/, "");
+  } catch {
+    throw new Error(
+      'Cannot resolve "@marko/run" — it is required when routes are enabled. ' +
+        "Pass { routes: false } to build a pure Marko app without @marko/run.",
+    );
+  }
+  file = fs.existsSync(path.join(runRoot, `dist/runtime/${name}.js`))
+    ? path.join(runRoot, `dist/runtime/${name}.js`)
+    : path.join(runRoot, `dist/runtime/${name}.cjs`);
+  markoRunRuntimeFiles.set(name, file);
+  return file;
+}
 
 function markoRunRuntimeInternal(): string {
-  if (!markoRunRuntimeInternalCache) {
-    let runRoot: string;
-    try {
-      runRoot = projectRequire
-        .resolve("@marko/run")
-        .replace(/(src|dist)[\\/]runtime[\\/].*$/, "");
-    } catch {
-      throw new Error(
-        'Cannot resolve "@marko/run" — it is required when routes are enabled. ' +
-          "Pass { routes: false } to build a pure Marko app without @marko/run.",
-      );
-    }
-    markoRunRuntimeInternalCache = fs.existsSync(
-      path.join(runRoot, "dist/runtime/internal.js"),
-    )
-      ? path.join(runRoot, "dist/runtime/internal.js")
-      : path.join(runRoot, "dist/runtime/internal.cjs");
-  }
-  return markoRunRuntimeInternalCache;
+  return markoRunRuntimeFile("internal");
+}
+
+function markoRunRuntimeClient(): string {
+  return markoRunRuntimeFile("client");
 }
 
 type VirtualModulesPluginInstance = InstanceType<
@@ -87,6 +94,7 @@ export function createConfigs(
       ? {
           "@marko/run/router": routerPath,
           "virtual:marko-run/runtime/internal": markoRunRuntimeInternal(),
+          "virtual:marko-run/runtime/client": markoRunRuntimeClient(),
           "virtual:marko-run": entryFilesDir,
         }
       : undefined,
@@ -119,6 +127,10 @@ export function createConfigs(
             (resource: any) => {
               if (resource.request === "virtual:marko-run/runtime/internal") {
                 resource.request = markoRunRuntimeInternal();
+              } else if (
+                resource.request === "virtual:marko-run/runtime/client"
+              ) {
+                resource.request = markoRunRuntimeClient();
               } else {
                 resource.request = resource.request.replace(
                   "virtual:marko-run",
@@ -147,6 +159,13 @@ export function createConfigs(
   const markoPlugin = new MarkoRspackPlugin({
     entries: { web: webEntry, node: nodeEntry },
     sourceMaps: mode === "development",
+    // Bootstrap `window.Run` (Run.href) in every browser entry — upstream
+    // @marko/run does this from its vite transform; without it client-side
+    // Run.href calls hit an undefined global. The module is idempotent
+    // (`window.Run ||= …`), so per-entry duplication is harmless.
+    ...(routesEnabled
+      ? { browserEntryImports: [markoRunRuntimeClient()] }
+      : {}),
   });
 
   const webConfig: Configuration = {

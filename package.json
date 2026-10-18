@@ -14,6 +14,7 @@
     "bench:setup": "pnpm run bench:prepare",
     "bench:perf": "node scripts/bench-perf.mjs",
     "test:routes": "pnpm --filter @markopack/core run build && pnpm --filter @markopack/rspack run build && node scripts/test-routes.mjs",
+    "test:run-href": "pnpm --filter @markopack/core run build && pnpm --filter @markopack/rspack run build && node scripts/test-run-href.mjs",
     "version": "changeset version",
     "release": "pnpm run build && changeset publish",
     "test:contract": "pnpm --filter @markopack/core run build && pnpm --filter @markopack/rspack run build && node scripts/test-match-contract.mjs",

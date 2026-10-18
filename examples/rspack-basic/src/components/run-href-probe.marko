@@ -1,0 +1,23 @@
+<let/href = "" />
+<div class="run-href-fixture" data-run-href=href || undefined>
+  <effect() {
+    // Client-only probe: proves `window.Run` (bootstrapped from
+    // @marko/run's runtime client into every browser entry) exists and
+    // Run.href resolves a typed route with params in the browser.
+    href = Run.href("/products/$id", { params: { id: "42" } });
+  }/>
+  <p>run.href fixture: ${href || "pending hydration"}</p>
+</div>
+
+<style>
+  .run-href-fixture {
+    border: 2px dashed rgba(183, 90, 47, 0.55);
+    border-radius: 10px;
+    padding: 0.9rem 1.1rem;
+  }
+
+  .run-href-fixture p {
+    margin: 0;
+    font-weight: 600;
+  }
+</style>

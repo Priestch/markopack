@@ -107,6 +107,40 @@ export async function buildAndWriteRoutes(
   return { routes, virtualModules, entryFilesDir, routerPath, typesDir };
 }
 
+/**
+ * Writes `.marko-run/routes.d.ts` for the current route set — in build AND
+ * dev (upstream parity: editors get route types as soon as routes are
+ * generated, not only after a production build). Skipped silently when
+ * there are no routes or no tsconfig at the root (type generation is
+ * meaningless there). The watch-routes re-walker calls this again after
+ * every clean re-walk.
+ */
+export async function writeTypesFile(
+  root: string,
+  routeResult: { routes: BuiltRoutes | null; typesDir: string },
+  adapter: Adapter | null,
+) {
+  if (!routeResult.routes?.list?.length) return;
+
+  const tsConfigExists = (await fs.promises.readdir(root)).some((f) =>
+    /^\.?tsconfig/.test(f),
+  );
+  if (!tsConfigExists) return;
+
+  try {
+    const data = await renderRouteTypeInfo(
+      routeResult.routes,
+      routeResult.typesDir,
+      adapter ?? undefined,
+    );
+    const filepath = path.join(routeResult.typesDir, "routes.d.ts");
+    fs.mkdirSync(routeResult.typesDir, { recursive: true });
+    await fs.promises.writeFile(filepath, data);
+  } catch {
+    // non-critical
+  }
+}
+
 function writeTemplateFiles(
   routes: BuiltRoutes,
   entryFilesDir: string,

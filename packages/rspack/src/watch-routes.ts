@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import pc from "picocolors";
 import type { Adapter } from "@markopack/core/types";
-import { buildAndWriteRoutes } from "./routes.js";
+import { buildAndWriteRoutes, writeTypesFile } from "./routes.js";
 import type { MarkoRunRspackOptions, RouteBuildResult } from "./routes.js";
 
 /**
@@ -106,6 +106,8 @@ export function watchRoutes(
         adapter,
       );
       await applyResult(result, STORE_INIT_MAX_RETRIES);
+      // Keep routes.d.ts in step with the re-walked route set.
+      await writeTypesFile(root, result, adapter);
     } catch (err) {
       // Generator failures (e.g. a broken route file) must never take the
       // dev server down — log and keep serving the last good build.

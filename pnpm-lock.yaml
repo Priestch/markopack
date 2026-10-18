@@ -68,7 +68,7 @@ importers:
   packages/adapter-netlify:
     dependencies:
       '@marko/run':
-        specifier: ^0.11.0
+        specifier: ^0.11.14
         version: 0.11.14(@types/node@24.19.2)(esbuild@0.28.0)(marko@6.4.5)(sass@1.105.2)
       '@markopack/core':
         specifier: workspace:*
@@ -87,7 +87,7 @@ importers:
   packages/adapter-node:
     dependencies:
       '@marko/run':
-        specifier: ^0.11.0
+        specifier: ^0.11.14
         version: 0.11.14(@types/node@24.19.2)(esbuild@0.28.0)(marko@6.4.5)(sass@1.105.2)
       '@markopack/core':
         specifier: workspace:*
@@ -100,7 +100,7 @@ importers:
   packages/adapter-static:
     dependencies:
       '@marko/run':
-        specifier: ^0.11.0
+        specifier: ^0.11.14
         version: 0.11.14(@types/node@24.19.2)(esbuild@0.28.0)(marko@6.4.5)(sass@1.105.2)
       '@markopack/core':
         specifier: workspace:*

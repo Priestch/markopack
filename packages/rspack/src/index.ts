@@ -2,10 +2,14 @@ import path from "node:path";
 import fs from "node:fs";
 import { rspack } from "@rspack/core";
 import type { MultiCompiler, Compiler, Configuration } from "@rspack/core";
-import { renderRouteTypeInfo } from "@markopack/core/codegen";
-import type { Adapter, BuiltRoutes } from "@markopack/core/types";
+import type { Adapter } from "@markopack/core/types";
 import { createConfigs } from "./config.js";
-import { buildAndWriteRoutes, type MarkoRunRspackOptions, type RouteBuildResult } from "./routes.js";
+import {
+  buildAndWriteRoutes,
+  writeTypesFile,
+  type MarkoRunRspackOptions,
+  type RouteBuildResult,
+} from "./routes.js";
 import { injectLinkAssetsManifest } from "./link-assets.js";
 import { startDevServer, type DevServer } from "./dev.js";
 import { loadUserConfig, mergeConfig, type UserRspackConfig } from "./user-config.js";
@@ -83,9 +87,9 @@ async function buildRoutes(
     });
   }
 
-  if (isBuild) {
-    await writeTypesFile(root, routeResult, adapter);
-  }
+  // Types are written for dev too (upstream parity) — editors get route
+  // types from `dev()` alone; watch-routes rewrites them after re-walks.
+  await writeTypesFile(root, routeResult, adapter);
 
   return routeResult;
 }
@@ -246,30 +250,4 @@ function withMarkoPlugin(
       },
     ],
   };
-}
-
-async function writeTypesFile(
-  root: string,
-  routeResult: { routes: BuiltRoutes | null; typesDir: string },
-  adapter: Adapter | null,
-) {
-  if (!routeResult.routes?.list?.length) return;
-
-  const tsConfigExists = (await fs.promises.readdir(root)).some((f) =>
-    /^\.?tsconfig/.test(f),
-  );
-  if (!tsConfigExists) return;
-
-  try {
-    const data = await renderRouteTypeInfo(
-      routeResult.routes,
-      routeResult.typesDir,
-      adapter ?? undefined,
-    );
-    const filepath = path.join(routeResult.typesDir, "routes.d.ts");
-    fs.mkdirSync(routeResult.typesDir, { recursive: true });
-    await fs.promises.writeFile(filepath, data);
-  } catch {
-    // non-critical
-  }
 }

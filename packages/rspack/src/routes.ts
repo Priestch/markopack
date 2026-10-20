@@ -184,12 +184,12 @@ function writeVirtualModule(
 }
 
 // Files this package generates into .marko-run: per-route/middleware/router
-// entries (markoRunFilePrefix), rendered page templates, and the fallback
-// HTML. Anything else in the dir (e.g. routes.d.ts from a build) is left
-// alone.
-const GENERATED_FILE_PATTERN = new RegExp(
-  `^${markoRunFilePrefix}|\\.marko$|^__fallback_index\\.html$`,
-);
+// entries (markoRunFilePrefix) and rendered page templates. Anything else in
+// the dir (e.g. routes.d.ts from a build, __fallback_index.html written once
+// at config time as the HtmlRspackPlugin template) is left alone — the
+// fallback is not a route artifact and is never in `keep`, so cleaning it
+// deleted the html template mid-dev (re-walk → HtmlRspackPlugin read error).
+const GENERATED_FILE_PATTERN = new RegExp(`^${markoRunFilePrefix}|\\.marko$`);
 
 function cleanupStaleFiles(dir: string, keep: Map<string, string>) {
   for (const name of fs.readdirSync(dir)) {

@@ -45,9 +45,14 @@ export async function startDevServer(
     markoPlugin?: MarkoRspackPlugin;
   },
 ): Promise<DevServer> {
-  const { outputDir, port } = opts;
+  const { outputDir, port, root } = opts;
   const clientDist = path.join(outputDir, "client");
   const serverDist = path.join(outputDir, "server");
+  // 项目 public/ 约定（与 Vite publicDir 对齐）：源站静态资产直接按 URL 服务。
+  // 惰性初始化——资产可能在会话中途才出现（如 markopress 图片管线首渲染落盘）。
+  const publicDir = path.join(root, "public");
+  let publicSirv: ((req: http.IncomingMessage, res: http.ServerResponse, next: () => void) => void) | null =
+    null;
 
   let routerReady = false;
   let serverBundlePath: string | null = null;
@@ -192,13 +197,28 @@ export async function startDevServer(
         }
       };
 
-      // 带扩展名的 URL 先按静态资产服务；未命中落回 router——dot-path 路由
-      // （如 /sitemap.xml）不能被静态查找吞成 404。匹配用解析出的
-      // pathname，不是原始 req.url：带查询串的资产地址
+      // 带扩展名的 URL 先按静态资产服务；链路 = clientDist → public/ → router。
+      // router 兜底不可省——dot-path 路由（如 /sitemap.xml）不能被静态查找吞成
+      // 404。publicDir 会话中途出现也能被接住（每请求一次 existsSync，量级无碍）。
+      // 匹配用解析出的 pathname，不是原始 req.url：带查询串的资产地址
       // （/static/js/index.js?v=…）以查询参数结尾，用原始 URL 会漏进
       // router 变 404。
-      if (sirvFn && pathname && /\.\w+$/.test(pathname)) {
-        sirvFn(req, res, serveRouter);
+      if (pathname && /\.\w+$/.test(pathname)) {
+        const serveStatic = (): void => {
+          if (!publicSirv && fs.existsSync(publicDir)) {
+            publicSirv = projectRequire("sirv")(publicDir, { dev: true });
+          }
+          if (publicSirv) {
+            publicSirv(req, res, serveRouter);
+            return;
+          }
+          serveRouter();
+        };
+        if (sirvFn) {
+          sirvFn(req, res, serveStatic);
+          return;
+        }
+        serveStatic();
         return;
       }
 

@@ -11,6 +11,7 @@ import {
   spawnServer,
 } from "@markopack/core/utils/server";
 import compression from "compression";
+import { existsSync } from "node:fs";
 import fs from "fs/promises";
 import { createServer, type ServerResponse } from "http";
 import type { AddressInfo } from "net";
@@ -145,6 +146,13 @@ export default function staticAdapter(options: Options = {}): Adapter {
         // deleted routes and old hashed assets survive rebuilds (and mask
         // regressions when tests reuse the output dir).
         await fs.rm(outDir, { recursive: true, force: true });
+
+        // 项目 public/ 约定（Vite publicDir 对齐）：源站静态资产先拷入静态根。
+        // 爬取页面与 client 资产后写入、同名覆盖——构建产物优先（Vite 同语义）。
+        const publicDir = path.join(adapterConfig.root, "public");
+        if (existsSync(publicDir)) {
+          await fs.cp(publicDir, outDir, { recursive: true });
+        }
 
         // Browser assets are emitted to the sibling `client` directory while
         // crawled pages land in `public` — merge the two so referenced

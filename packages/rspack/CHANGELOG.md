@@ -1,5 +1,131 @@
 # @markopack/rspack
 
+## 0.4.0
+
+### Minor Changes
+
+- 7339654: Expose the actual listening port on the dev server handle
+
+  `dev()` resolves to a `DevServer` that until now only had `close()`. The
+  requested port is a hint — the server bumps it when taken — so callers
+  (that is: test harnesses spawning dev servers at `port: 0`) had to guess.
+  The handle now carries `port` with the actual bound port (0 in pure-Marko
+  mode, where the user entry owns the port). Powering the new fixture-test
+  workspace (`test/`, `pnpm run test:fixtures`).
+
+- 1818cdb: Write routes.d.ts in dev mode too
+
+  The generated route types were only written by production builds — under
+  `dev()` the file appeared only if a build had run before, leaving editors
+  without route types (and `GlobalDefineHandler` overloads) during pure-dev
+  work. Upstream writes them whenever routes are generated; markopack now
+  does the same: `dev()` writes `.marko-run/routes.d.ts` at startup, and
+  the route watcher rewrites it after every clean re-walk. Build behavior
+  is unchanged.
+
+- 2018544: Support Marko 6 lazy loading (`import X from "./x.marko" with { load: "idle" }`)
+
+  - `@markopack/compiler`: the marko loader compiles lazily imported
+    components with `entry: "load"` via the new `?load-entry` query, and
+    records each one's ready id through a kind-aware `onAsset` registry
+    (`__markopack_load_assets__`, separate from the page-asset registry so
+    a file that is both keeps both ids). Relative imports in translator
+    virtual modules (load-signal modules) are rewritten to absolute paths
+    so they resolve from the flattened cache location.
+  - `@markopack/compiler`: `MarkoRspackPlugin` discovers load entries from
+    the registry during server compilation (filtered to modules present in
+    the current build, so in-process multi-app builds can't cross-pollute),
+    injects them as browser entries, and collects lazy-component css into
+    a separate async bucket so pages don't eagerly link every lazy
+    component's styles.
+  - `@markopack/rspack`: the link-assets manifest gains entries keyed by
+    ready id — `block` carries the component's stylesheet link, `defer`
+    its load-entry script (`async`, since the trigger may fire long after
+    parse). The browser build now uses `optimization: { runtimeChunk:
+"single" }`: the ready handshake passes through module-level state in
+    the dom runtime, so page entries and load entries must share one
+    runtime instance instead of each inlining their own.
+
+- 7c2b60d: Add a <root>/public/ convention for static assets (Vite publicDir semantics)
+
+  Projects can now ship source static assets from a `public/` directory at
+  the app root. In dev, they are served as a sirv pass in the chain
+  `clientDist → public → router` — the public sirv is lazily initialized per
+  request, so assets may appear mid-session (e.g. the markopress image
+  pipeline writing on first render). The router fallback stays last so
+  dot-path routes (`/sitemap.xml`) are never swallowed by static lookup.
+  In static builds, `buildEnd` copies `public/` into the output after
+  removing `outDir` and before merging the client bundle — built artifacts
+  win over source assets, same precedence as Vite. Previously markopack had
+  no public concept at all; this is the groundwork for site assets like
+  robots.txt and favicons.
+
+- Serve and ship a project `public/` directory (Vite `publicDir` convention)
+
+  markopack had no notion of a public directory: dev served static assets
+  from the compiled client output only, and static builds shipped exactly
+  what the build produced. Projects now get the standard `public/`
+  convention at the root:
+
+  - dev: extension-suffixed URLs fall through client assets to
+    `<root>/public` (sirv, lazily initialized so assets can appear
+    mid-session) before reaching the router.
+  - static adapter: `buildEnd` copies `<root>/public` into the output root
+    before crawled pages and client assets are merged, so build outputs
+    win on collision (same semantics as Vite).
+
+- fb317b6: Support `Run.href` in the browser
+
+  `@marko/run`'s typed-link API (`Run.href("/products/$id", { params })`)
+  only worked server-side under markopack: nothing defined `window.Run` in
+  browser bundles, so client-side calls hit an undefined global. The
+  `@marko/run` client runtime (which does `window.Run ||= { href }`) is now
+  prepended to every browser entry — page entries and host entries alike —
+  so hydrated code can call `Run.href` directly. The module is idempotent,
+  so per-entry duplication is harmless. `virtual:marko-run/runtime/client`
+  is also aliased now, matching upstream, for code that imports it
+  explicitly. MarkoRspackPlugin gains a `browserEntryImports` option
+  (modules prepended to every browser entry) which powers this.
+
+### Patch Changes
+
+- b470fd7: Stop deleting \_\_fallback_index.html on route re-walk
+
+  The dev route re-walk's stale-file cleanup treated `__fallback_index.html`
+  as a generated artifact and deleted it — but the fallback is written once
+  at config time as the `HtmlRspackPlugin` template and is never in `keep`,
+  so the first route add/remove during dev destroyed the HTML template
+  mid-session (re-walk → `HtmlRspackPlugin` read error). The generated-file
+  pattern now covers only per-route entries and page templates; the fallback
+  and everything else in `.marko-run/` (e.g. `routes.d.ts`) is left alone.
+
+- e081d12: Serve @marko/run/router through the runtime facade in dev
+
+  In dev, server-side imports of `@marko/run/router` (middleware, handlers,
+  app code) now resolve to @marko/run's router facade, which defers to the
+  `__marko_run__` global instead of statically importing the generated
+  router — matching upstream. App code reachable from middleware can no
+  longer create an evaluation cycle with the generated router, which
+  imports that code back through its routes; request-time match()/fetch()/
+  invoke() calls behave identically (verified by the basic-handler fixture
+  in both dev and preview modes). Production builds keep the direct alias.
+
+- 1818cdb: Require @marko/run ^0.11.14 (peer dependency floor)
+
+  The generated code assumes the 0.11.14 runtime: client-disconnect render
+  abort, same-origin-referer context.back(), //-path origin handling, the
+  deferred response head, and the lazy router facade all shipped there.
+  Users resolving 0.11.0–0.11.13 against the previous ^0.11.0 floor got
+  silently broken behavior. The peer range now starts at ^0.11.14 to fail
+  installation instead of failing at runtime.
+
+- Updated dependencies
+- Updated dependencies [2018544]
+- Updated dependencies [1818cdb]
+- Updated dependencies [fb317b6]
+  - @markopack/compiler@0.4.0
+  - @markopack/core@0.4.0
+
 ## 0.3.3
 
 ### Patch Changes

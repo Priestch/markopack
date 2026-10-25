@@ -1,5 +1,51 @@
 # @markopack/adapter-static
 
+## 0.4.0
+
+### Minor Changes
+
+- 7c2b60d: Add a <root>/public/ convention for static assets (Vite publicDir semantics)
+
+  Projects can now ship source static assets from a `public/` directory at
+  the app root. In dev, they are served as a sirv pass in the chain
+  `clientDist → public → router` — the public sirv is lazily initialized per
+  request, so assets may appear mid-session (e.g. the markopress image
+  pipeline writing on first render). The router fallback stays last so
+  dot-path routes (`/sitemap.xml`) are never swallowed by static lookup.
+  In static builds, `buildEnd` copies `public/` into the output after
+  removing `outDir` and before merging the client bundle — built artifacts
+  win over source assets, same precedence as Vite. Previously markopack had
+  no public concept at all; this is the groundwork for site assets like
+  robots.txt and favicons.
+
+- Serve and ship a project `public/` directory (Vite `publicDir` convention)
+
+  markopack had no notion of a public directory: dev served static assets
+  from the compiled client output only, and static builds shipped exactly
+  what the build produced. Projects now get the standard `public/`
+  convention at the root:
+
+  - dev: extension-suffixed URLs fall through client assets to
+    `<root>/public` (sirv, lazily initialized so assets can appear
+    mid-session) before reaching the router.
+  - static adapter: `buildEnd` copies `<root>/public` into the output root
+    before crawled pages and client assets are merged, so build outputs
+    win on collision (same semantics as Vite).
+
+### Patch Changes
+
+- 1818cdb: Require @marko/run ^0.11.14 (peer dependency floor)
+
+  The generated code assumes the 0.11.14 runtime: client-disconnect render
+  abort, same-origin-referer context.back(), //-path origin handling, the
+  deferred response head, and the lazy router facade all shipped there.
+  Users resolving 0.11.0–0.11.13 against the previous ^0.11.0 floor got
+  silently broken behavior. The peer range now starts at ^0.11.14 to fail
+  installation instead of failing at runtime.
+
+- Updated dependencies [1818cdb]
+  - @markopack/core@0.4.0
+
 ## 0.3.3
 
 ### Patch Changes

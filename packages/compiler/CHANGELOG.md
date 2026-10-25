@@ -1,5 +1,64 @@
 # @markopack/compiler
 
+## 0.4.0
+
+### Minor Changes
+
+- 2018544: Support Marko 6 lazy loading (`import X from "./x.marko" with { load: "idle" }`)
+
+  - `@markopack/compiler`: the marko loader compiles lazily imported
+    components with `entry: "load"` via the new `?load-entry` query, and
+    records each one's ready id through a kind-aware `onAsset` registry
+    (`__markopack_load_assets__`, separate from the page-asset registry so
+    a file that is both keeps both ids). Relative imports in translator
+    virtual modules (load-signal modules) are rewritten to absolute paths
+    so they resolve from the flattened cache location.
+  - `@markopack/compiler`: `MarkoRspackPlugin` discovers load entries from
+    the registry during server compilation (filtered to modules present in
+    the current build, so in-process multi-app builds can't cross-pollute),
+    injects them as browser entries, and collects lazy-component css into
+    a separate async bucket so pages don't eagerly link every lazy
+    component's styles.
+  - `@markopack/rspack`: the link-assets manifest gains entries keyed by
+    ready id — `block` carries the component's stylesheet link, `defer`
+    its load-entry script (`async`, since the trigger may fire long after
+    parse). The browser build now uses `optimization: { runtimeChunk:
+"single" }`: the ready handshake passes through module-level state in
+    the dom runtime, so page entries and load entries must share one
+    runtime instance instead of each inlining their own.
+
+- fb317b6: Support `Run.href` in the browser
+
+  `@marko/run`'s typed-link API (`Run.href("/products/$id", { params })`)
+  only worked server-side under markopack: nothing defined `window.Run` in
+  browser bundles, so client-side calls hit an undefined global. The
+  `@marko/run` client runtime (which does `window.Run ||= { href }`) is now
+  prepended to every browser entry — page entries and host entries alike —
+  so hydrated code can call `Run.href` directly. The module is idempotent,
+  so per-entry duplication is harmless. `virtual:marko-run/runtime/client`
+  is also aliased now, matching upstream, for code that imports it
+  explicitly. MarkoRspackPlugin gains a `browserEntryImports` option
+  (modules prepended to every browser entry) which powers this.
+
+### Patch Changes
+
+- Import JS-referenced components into page browser entries so they hydrate
+
+  The translator's `output: "hydrate"` entry compile only statically imports
+  interactive components reachable through `.marko → .marko` imports. A
+  component referenced by a plain JS module (e.g. a data module holding a
+  component reference that a template renders via a dynamic tag) compiled
+  fine server-side but never reached the browser graph — the resume payload
+  referenced its template registration id, the module never executed, and
+  hydration failed at runtime with `effects[i] is not a function`.
+
+  The server compiler's entry discovery now diffs full-graph `.marko`
+  reachability against the `.marko`-only closure per page entry and appends
+  the difference to the browser entry's imports — ordered before the
+  `?browser-entry` module, whose `init()` resolves template ids from the
+  resume payload immediately. Lazy (`with { load: }`) components are
+  excluded so their load entries keep working.
+
 ## 0.3.3
 
 ## 0.3.2

@@ -44,6 +44,12 @@ export default class MarkoRspackPlugin {
   private serverCompiler: CompilerType | null = null;
   private browserCompilers: CompilerType[] = [];
   private clientEntries: Record<string, string> = {};
+  /**
+   * Per page entry: extra .marko modules the browser entry must import for
+   * hydration — components reachable only through non-.marko modules, which
+   * the translator's hydrate emit cannot see (see finishModules note).
+   */
+  private clientHydrateImports: Record<string, string[]> = {};
   private loadEntries: Record<string, { file: string; readyId: string }> = {};
   private clientAssets: Record<
     string,
@@ -226,6 +232,9 @@ export default class MarkoRspackPlugin {
           (modules: Iterable<Module>) => {
             let hasChangedEntries = false;
             const removedEntryIds = new Set(Object.keys(this.clientEntries));
+            // Server entry modules by filename — the seeds for the
+            // hydrate-import reachability diff below.
+            const entryModules = new Map<string, Module>();
             // Every .marko file in this compilation — used to filter the
             // process-global load registry down to this app's lazy
             // components (the registry only grows and accumulates across
@@ -242,6 +251,7 @@ export default class MarkoRspackPlugin {
                 this.needsManifestSync = true;
                 const filename = resource.replace(/\?server-entry$/, '');
                 moduleFiles.add(filename);
+                entryModules.set(filename, mod);
                 // Entry names become output filenames — strip leading dots
                 // (e.g. ".marko-run" parent dir) that static hosts treat as
                 // hidden files.
@@ -254,6 +264,58 @@ export default class MarkoRspackPlugin {
                 }
               } else if (/\.marko(\?.*)?$/.test(resource)) {
                 moduleFiles.add(resource.replace(/\?.*$/, ''));
+              }
+            }
+
+            // Hydrate-emit blind spot: the translator's `output: "hydrate"`
+            // entry compile only imports interactive components reachable
+            // through `.marko → .marko` imports (its cross-file analysis
+            // domain). A component referenced by a plain JS module (e.g. a
+            // data module holding a component reference that a template
+            // renders via a dynamic tag) compiles fine server-side but never
+            // reaches the browser graph — hydration then fails at runtime
+            // ("effects[i] is not a function", the resume payload references
+            // module effects that were never registered).
+            //
+            // Fix: per page entry, diff full-graph .marko reachability
+            // against the .marko-only closure, and append the difference to
+            // the browser entry's imports. Their `output: "dom"` compiles
+            // register the hydration the resume payload expects — the same
+            // mechanism as a component statically used inside a template.
+            // Lazy (`with { load: }`) components are excluded: they hydrate
+            // through their load entry, and eager import would defeat them.
+            const lazyFiles = new Set(
+              Object.values(this.loadEntries).map(({ file }) => file),
+            );
+            for (const [filename, entryModule] of entryModules) {
+              const entryTemplateId = moduleName(filename).replace(/^\.+/, '');
+              const markoOnly = reachableMarko(
+                compilation,
+                entryModule,
+                true,
+              );
+              const full = reachableMarko(compilation, entryModule, false);
+              const missed = [...full]
+                .filter(
+                  (file) =>
+                    file !== filename &&
+                    !markoOnly.has(file) &&
+                    !lazyFiles.has(file),
+                )
+                .sort();
+
+              const previous = this.clientHydrateImports[entryTemplateId];
+              const changedImports =
+                previous === undefined ||
+                previous.length !== missed.length ||
+                previous.some((file, i) => file !== missed[i]);
+              if (changedImports) {
+                hasChangedEntries = true;
+                if (missed.length) {
+                  this.clientHydrateImports[entryTemplateId] = missed;
+                } else {
+                  delete this.clientHydrateImports[entryTemplateId];
+                }
               }
             }
 
@@ -291,6 +353,7 @@ export default class MarkoRspackPlugin {
             for (const removedEntryId of removedEntryIds) {
               hasChangedEntries = true;
               delete this.clientEntries[removedEntryId];
+              delete this.clientHydrateImports[removedEntryId];
               for (const compilerName in this.clientAssets) {
                 delete this.clientAssets[compilerName][removedEntryId];
               }
@@ -322,7 +385,15 @@ export default class MarkoRspackPlugin {
       const normalizedEntries: Record<string, { import: string[] }> = {};
       for (const key in this.clientEntries) {
         normalizedEntries[key] = {
-          import: [...entryImports, this.clientEntries[key]],
+          // Hydrate imports must run BEFORE the ?browser-entry module: its
+          // init() resolves template ids from the resume payload against the
+          // registration table, so a component module executing after init
+          // registers too late ("effects[i] is not a function").
+          import: [
+            ...entryImports,
+            ...(this.clientHydrateImports[key] ?? []),
+            this.clientEntries[key],
+          ],
         };
       }
       for (const [name, { file }] of Object.entries(this.loadEntries)) {
@@ -473,4 +544,62 @@ export default class MarkoRspackPlugin {
 
     return result as T;
   }
+}
+
+/**
+ * Collect the .marko modules reachable from a seed module over the server
+ * module graph. `markoOnly` restricts edges to `.marko → .marko` imports —
+ * the translator's cross-file analysis domain (what its hydrate emit can
+ * discover on its own). The full walk follows every edge, capturing
+ * components referenced through plain JS modules.
+ */
+function reachableMarko(
+  compilation: CompilationType,
+  seed: Module,
+  markoOnly: boolean,
+): Set<string> {
+  const graph = compilation.moduleGraph;
+  const isMarkoResource = (resource?: string) =>
+    !!resource && /\.marko(\?.*)?$/.test(resource);
+  const resourceOf = (m: Module | null | undefined) =>
+    (m as Module & { resource?: string } | null | undefined)?.resource;
+  const seenModules = new Set<Module>();
+  const files = new Set<string>();
+  const queue: Module[] = [seed];
+  seenModules.add(seed);
+
+  while (queue.length) {
+    const current = queue.shift()!;
+    let outgoing: Iterable<any>;
+    try {
+      outgoing = graph.getOutgoingConnections(current);
+    } catch {
+      continue;
+    }
+    for (const connection of outgoing) {
+      const target = connection.module as Module | null;
+      if (!target || seenModules.has(target)) continue;
+      // In watch rebuilds stale connections linger on the graph — only
+      // follow edges the compilation still considers active.
+      const active =
+        typeof connection.isActive === 'function'
+          ? connection.isActive(compilation)
+          : true;
+      if (active === false) continue;
+      const targetResource = resourceOf(target);
+      if (!targetResource) continue;
+      if (markoOnly) {
+        // Edge must stay inside the .marko→.marko closure.
+        if (!isMarkoResource(targetResource)) continue;
+        if (!isMarkoResource(resourceOf(current))) continue;
+      }
+      seenModules.add(target);
+      if (isMarkoResource(targetResource)) {
+        files.add(targetResource.replace(/\?.*$/, ''));
+      }
+      queue.push(target);
+    }
+  }
+
+  return files;
 }

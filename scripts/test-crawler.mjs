@@ -8,6 +8,8 @@
  *   2. Start-queue dedup — duplicate entries in `paths` are crawled once.
  *   3. Link discovery + redirect scheduling still work through the pool.
  *   4. First error propagates out of crawl() after in-flight visits settle.
+ *   5. Asset links are skipped (no visit, no junk `<asset>.html`), while
+ *      dotted page routes (`/docs/v1.2`) keep being crawled.
  *
  * Run: npm run test:crawler
  */
@@ -117,6 +119,46 @@ try {
       (err) => err instanceof Error && err.message === "boom: /page-3",
     );
     console.log("  error propagation ✓");
+  }
+
+  // --- 5: asset links skipped; dotted page routes keep crawling -----------
+  {
+    const pages = new Map([
+      [
+        "/page-0",
+        `<a href="/_markopress/image/ab12/pic.png">original</a> <a href="/docs/v1.2">dotted</a>`,
+      ],
+      ["/docs/v1.2", `<a href="/page-0">back</a>`],
+    ]);
+    const visits = [];
+    const makeRequest = async (request) => {
+      const p = new URL(request.url).pathname;
+      visits.push(p);
+      const body = pages.get(p);
+      if (body === undefined) return new Response("nope", { status: 404 });
+      return new Response(`<!DOCTYPE html><html><body>${body}</body></html>`, {
+        headers: { "content-type": "text/html" },
+      });
+    };
+    const crawler = createCrawler(makeRequest, {
+      out: path.join(out, "d"),
+      notFoundPath: "/404",
+    });
+    await crawler.crawl(["/page-0"]);
+    // The asset link is never fetched…
+    assert.ok(
+      !visits.includes("/_markopress/image/ab12/pic.png"),
+      "asset link was visited",
+    );
+    // …while a dotted page route discovered via <a> still is.
+    assert.ok(visits.includes("/docs/v1.2"), "dotted page route not visited");
+    // And nothing wrote a junk 404 document next to where the asset belongs.
+    const written = readdirSync(path.join(out, "d"), { recursive: true });
+    assert.ok(
+      !written.some((f) => String(f).includes("pic.png")),
+      `junk asset html written: ${written.filter((f) => String(f).includes("pic.png"))}`,
+    );
+    console.log("  asset-link skip + dotted-route crawl ✓");
   }
 
   console.log("crawler tests: all passed");

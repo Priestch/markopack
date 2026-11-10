@@ -6,6 +6,18 @@ import { finished } from "stream/promises";
 
 const ignoredRels = new Set(["nofollow", "enclosure", "external"]);
 
+/**
+ * Known static-asset extensions. A discovered link ending in one is a file
+ * reference — e.g. an md image pipeline wrapping its originals in
+ * `<a href="/_markopress/image/…/pic.png">` — not a page: assets reach the
+ * output through the public-copy step, so visiting them only produces 404
+ * noise (and, worse, `pic.png.html` 404 documents). Deliberately an
+ * extension allowlist rather than a generic `/\.\w+$/`: dotted page routes
+ * (`/docs/v1.2`) must keep being crawled. Seed paths (the route table)
+ * bypass `scheduleVisit`, so real routes are unaffected either way.
+ */
+const assetExtRe = /\.(?:svg|png|jpe?g|gif|webp|avif|ico|css|mjs|cjs|js|map|woff2?|ttf|otf|eot|mp4|webm|mov|mp3|wav|ogg|pdf|zip|gz|txt|xml|json)$/i;
+
 export interface Options {
   out?: string;
   origin?: string;
@@ -78,6 +90,7 @@ export default function createCrawler(
   let collected: VisitResult[] = [];
 
   function scheduleVisit(path: string) {
+    if (assetExtRe.test(path)) return;
     if (!seen.has(path)) {
       seen.add(path);
       nextPaths.push(path);
@@ -161,7 +174,10 @@ export default function createCrawler(
           }
           break;
         case 404:
-          if (!notFoundPath || !htmlContentType) {
+          // An asset-ish path (seeded directly, or an extension the filter above
+          // doesn't list) has no page to prerender — never write a `404.html`
+          // document next to where the real file belongs.
+          if (!notFoundPath || !htmlContentType || assetExtRe.test(path)) {
             abortController.abort();
             return { path, status, ok: true };
           }

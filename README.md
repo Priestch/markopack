@@ -133,6 +133,24 @@ export default {
 
 Keys outside the safe subset (`plugins`, `output`, `entry`, …) apply to the browser config only and produce a warning — use the function form for per-side control. The function form receives **every generated config**: `(config, side) => config | void` (`side` is `"browser"` or `"server"`). `dev({ rspack })` / `build({ rspack })` apply the same callback after the file config.
 
+Production builds extract modules shared across route entries into shared chunks (`splitChunks: { chunks: "all" }`), so cross-route navigation downloads only the page delta instead of a full self-contained entry. To tune it, spread the generated `optimization.splitChunks` — `optimization.splitChunks.cacheGroups` deep-merges per key in the object form, so adding your own vendor groups can't drop the managed `marko-runtime` group:
+
+```js
+// rspack.config.mjs — extra vendor grouping, thresholds for a big site
+export default {
+  optimization: {
+    splitChunks: {
+      maxInitialRequests: 30,
+      cacheGroups: {
+        "site-vendor": { test: /[\/]node_modules[\/]xgplayer[\/]/, name: "site-vendor", chunks: "all" },
+      },
+    },
+  },
+};
+```
+
+To go back to self-contained per-entry bundles, set `optimization.splitChunks = false` explicitly.
+
 ### Managed invariants (do not touch)
 
 These are owned by markopack's dual-compiler coordination; a config layer that breaks them now fails fast with a descriptive error instead of a mysterious hydration desync at runtime:
@@ -141,6 +159,7 @@ These are owned by markopack's dual-compiler coordination; a config layer that b
 |---|---|
 | `entry` must keep the generated `index` entry | Routes are virtual modules, and `MarkoRspackPlugin` merges dynamic page entries into it. Replacing it silently drops routing/hydration. |
 | Keep `MarkoRspackPlugin` in `plugins` | Syncs dynamic entries and the client asset manifest between browser and server bundles. Append plugins, never rebuild the array without it. |
+| Keep `optimization.runtimeChunk: "single"` and the `marko-runtime` splitChunks cacheGroup | Both pin `@marko/runtime-tags` to one module instance per page load — the dom runtime's `ready()`/`readyIds` handshake is module-level state; a second copy (initial shared chunk + async load-entry chunk) breaks lazy hydration silently. Tune thresholds or add cache groups by spreading; opt out of cross-entry splitting entirely with `optimization.splitChunks = false`. |
 | Keep `output` structure (`dist/client`, `dist/server`, `index.cjs`) | Dev server, manifest injection, and adapters all resolve these paths. |
 | Keep `resolve.alias` for `@marko/run/router` and `virtual:marko-run/*` | Route virtual modules are generated into `.marko-run/` at build time. |
 | Keep `resolve.conditions` / Marko compiler settings | The Marko compiler picks DOM vs HTML output through them. |

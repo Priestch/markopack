@@ -102,11 +102,16 @@ export async function loadUserConfig(root: string): Promise<UserRspackConfig | n
  * arrays (plugins, module.rules) concatenate, plain objects (output,
  * resolve, …) shallow-merge, everything else replaces.
  *
- * Two keys get deeper treatment — they are the ones users most often add
- * to, and a shallow replace would silently drop markopack's own values
- * (e.g. the `@marko/run/router` aliases):
+ * Three keys get deeper treatment — they are the ones users most often
+ * add to, and a shallow replace would silently drop markopack's own
+ * values (e.g. the `@marko/run/router` aliases):
  * - `resolve.alias` object-merges (a user alias with the same key wins)
  * - `resolve.extensions` concatenates, deduplicated
+ * - `optimization.splitChunks.cacheGroups` merges per cache-group key, so
+ *   a user setting any splitChunks option (thresholds, their own vendor
+ *   groups) keeps the managed `marko-runtime` group — the ready()
+ *   single-instance pin. A user group with the same key wins;
+ *   `splitChunks: false` (opt-out) still replaces wholesale.
  */
 export function mergeConfig(base: Configuration, user: Partial<Configuration>): Configuration {
   const out: Record<string, unknown> = { ...base };
@@ -122,6 +127,27 @@ export function mergeConfig(base: Configuration, user: Partial<Configuration>): 
           ...((prev as any).rules ?? []),
           ...((value as any).rules as unknown[]),
         ];
+      }
+      // optimization: without this, any user splitChunks key would replace
+      // the generated one wholesale and drop the managed `marko-runtime`
+      // cacheGroup (ready() single-instance pin) — the assertManagedInvariants
+      // guard would then fail the build for a customization that should have
+      // been safe. Merge splitChunks field-by-field and cacheGroups per key.
+      if (key === "optimization") {
+        const prevSplit = (prev as Record<string, any>).splitChunks;
+        const userSplit = (value as Record<string, any>).splitChunks;
+        if (
+          isPlainObject(prevSplit) &&
+          isPlainObject(userSplit) &&
+          isPlainObject(prevSplit.cacheGroups) &&
+          isPlainObject(userSplit.cacheGroups)
+        ) {
+          (merged as Record<string, any>).splitChunks = {
+            ...prevSplit,
+            ...userSplit,
+            cacheGroups: { ...prevSplit.cacheGroups, ...userSplit.cacheGroups },
+          };
+        }
       }
       // resolve: aliases merge instead of replacing — replacing would drop
       // the generated @marko/run/router aliases and break routing.

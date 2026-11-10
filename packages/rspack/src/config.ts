@@ -9,6 +9,28 @@ import type { RouteBuildResult } from "./routes.js";
 
 const projectRequire = createRequire(import.meta.url);
 
+/**
+ * Name of the managed splitChunks cacheGroup that pins @marko/runtime-tags
+ * into one shared initial chunk. Exported for the managed-invariant guard
+ * in index.ts to compare against.
+ */
+export const MARKO_RUNTIME_CACHE_GROUP_NAME = "marko-runtime";
+
+/**
+ * The managed cacheGroup itself. `enforce: true` bypasses minSize /
+ * maxInitialRequests so the pin never gets optimized away, and `priority`
+ * keeps it above the default groups (-10/-20) and user groups that don't
+ * set one — a module is assigned to exactly ONE cacheGroup, so winning the
+ * priority contest is what guarantees a single runtime-tags instance.
+ */
+export const MARKO_RUNTIME_CACHE_GROUP = {
+  test: /[\/]@marko[\/]runtime-tags[\/]/,
+  name: MARKO_RUNTIME_CACHE_GROUP_NAME,
+  chunks: "all",
+  enforce: true,
+  priority: 10,
+} as const;
+
 export interface CreateConfigsOptions {
   root: string;
   entry: string;
@@ -226,8 +248,30 @@ export function createConfigs(
     // dom runtime's ready(), whose readyIds set is module-level state.
     // With rspack's default per-entry inline runtime each entry gets its
     // own copy and the ready handshake never crosses entries.
+    //
+    // Cross-entry shared chunks: rspack's default `splitChunks: { chunks:
+    // 'async' }` never extracts modules shared across *initial* entries —
+    // page entries statically import their component trees, so the marko
+    // runtime, theme deps and site-common components were copied into
+    // every entry (measured on the pdflux pilot: 16 guide pages each
+    // shipping a byte-identical 220 KB stylesheet; / and /en each shipping
+    // the full landing payload). `chunks: 'all'` extracts modules shared
+    // by ≥2 entries once; rspack's default minSize/minChunks thresholds
+    // keep small sites from sprouting single-module chunks. See
+    // docs/cross-entry-shared-chunks.md.
     optimization: {
       runtimeChunk: "single",
+      splitChunks: {
+        chunks: "all",
+        cacheGroups: {
+          // Same invariant as runtimeChunk, one level up: without the pin,
+          // `chunks: 'all'` could assign runtime-tags differently between
+          // an initial shared chunk and an async (load-entry) chunk per
+          // page — two module instances, and the ready() handshake fails
+          // silently. The pin makes single-instance structural.
+          [MARKO_RUNTIME_CACHE_GROUP_NAME]: MARKO_RUNTIME_CACHE_GROUP,
+        },
+      },
     },
     output: {
       path: clientDist,

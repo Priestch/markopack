@@ -3,7 +3,7 @@ import fs from "node:fs";
 import { rspack } from "@rspack/core";
 import type { MultiCompiler, Compiler, Configuration } from "@rspack/core";
 import type { Adapter } from "@markopack/core/types";
-import { createConfigs } from "./config.js";
+import { createConfigs, MARKO_RUNTIME_CACHE_GROUP, MARKO_RUNTIME_CACHE_GROUP_NAME } from "./config.js";
 import {
   buildAndWriteRoutes,
   writeTypesFile,
@@ -311,6 +311,56 @@ function assertManagedInvariants(config: Configuration, side: "browser" | "serve
     throw new Error(
       `[markopack] The ${side} rspack config dropped the MarkoRspackPlugin — it syncs entries and the asset manifest between the browser and server bundles; without it hydration desyncs. ` +
         'Append plugins, never rebuild the array without it. See "Managed invariants" in the markopack README.',
+    );
+  }
+  // The chunking invariants only exist on the browser side — the server
+  // config has no runtimeChunk/splitChunks defaults to protect.
+  if (side === "browser") {
+    assertChunkingInvariants(config);
+  }
+}
+
+/**
+ * Browser-side chunking invariants (see docs/cross-entry-shared-chunks.md):
+ * `runtimeChunk: "single"` plus the managed `marko-runtime` cacheGroup pin
+ * @marko/runtime-tags to ONE module instance per page load — the dom
+ * runtime's ready()/readyIds handshake is module-level state, and a second
+ * copy (e.g. one in an initial shared chunk, one in a lazy load-entry
+ * chunk) breaks lazy hydration silently. Tuning thresholds or adding cache
+ * groups is fine (the object form deep-merges cacheGroups for exactly
+ * that); the only sanctioned removal is the explicit opt-out
+ * `optimization.splitChunks = false`, which returns to self-contained
+ * entries where the invariant trivially holds (one initial entry per page).
+ */
+function assertChunkingInvariants(config: Configuration): void {
+  const optimization = config.optimization as
+    | { runtimeChunk?: unknown; splitChunks?: unknown }
+    | undefined;
+  if (!optimization || optimization.runtimeChunk !== "single") {
+    throw new Error(
+      `[markopack] The browser rspack config changed the managed \`optimization.runtimeChunk: "single"\` — page entries and lazy load-entries must hydrate against the same runtime module instances (the dom runtime's ready()/readyIds handshake is module-level state). ` +
+        'See "Managed invariants" in the markopack README.',
+    );
+  }
+  const splitChunks = optimization.splitChunks;
+  if (splitChunks === false) return; // explicit opt-out
+  const group = (splitChunks as { cacheGroups?: Record<string, unknown> } | undefined)
+    ?.cacheGroups?.[MARKO_RUNTIME_CACHE_GROUP_NAME] as Record<string, unknown> | undefined;
+  const expected = MARKO_RUNTIME_CACHE_GROUP;
+  if (
+    !group ||
+    typeof group !== "object" ||
+    group.name !== expected.name ||
+    group.chunks !== expected.chunks ||
+    group.enforce !== expected.enforce ||
+    group.priority !== expected.priority ||
+    !(group.test instanceof RegExp) ||
+    group.test.source !== expected.test.source
+  ) {
+    throw new Error(
+      `[markopack] The browser rspack config modified or dropped the managed \`optimization.splitChunks.cacheGroups.${MARKO_RUNTIME_CACHE_GROUP_NAME}\` — it pins @marko/runtime-tags into one shared initial chunk so page entries and lazy load-entries hydrate against a single runtime instance. ` +
+        "Tune thresholds (minSize/maxInitialRequests/…) or add your own cache groups by spreading the existing ones (object-form configs merge cacheGroups per key automatically); " +
+        'to disable cross-entry splitting entirely, set `optimization.splitChunks = false`. See "Managed invariants" in the markopack README.',
     );
   }
 }

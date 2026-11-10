@@ -17,6 +17,7 @@
     "test:contract": "pnpm --filter @markopack/core run build && pnpm --filter @markopack/rspack run build && node scripts/test-match-contract.mjs",
     "test:crawler": "pnpm --filter @markopack/adapter-static run build && node scripts/test-crawler.mjs",
     "test:dev-watch": "pnpm --filter @markopack/core run build && pnpm --filter @markopack/compiler run build && pnpm --filter @markopack/rspack run build && node scripts/test-dev-watch.mjs",
+    "test:dev-proxy": "pnpm --filter @markopack/core run build && pnpm --filter @markopack/compiler run build && pnpm --filter @markopack/rspack run build && node scripts/test-dev-proxy.mjs",
     "test:fixtures": "pnpm run build && node scripts/test-fixtures.mjs",
     "test:lazy": "pnpm --filter @markopack/core run build && pnpm --filter @markopack/rspack run build && node scripts/test-lazy.mjs",
     "test:routes": "pnpm --filter @markopack/core run build && pnpm --filter @markopack/rspack run build && node scripts/test-routes.mjs",

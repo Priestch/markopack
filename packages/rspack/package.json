@@ -34,8 +34,9 @@
   },
   "dependencies": {
     "@babel/parser": "^7.29.2",
-    "@markopack/core": "workspace:*",
     "@markopack/compiler": "workspace:*",
+    "@markopack/core": "workspace:*",
+    "http-proxy-middleware": "^3.0.10",
     "picocolors": "^1.1.1",
     "sirv": "^3.0.1"
   },

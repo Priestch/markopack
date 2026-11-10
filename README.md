@@ -67,7 +67,48 @@ import Page from "./routes/+page.marko";
 Page.renderSync({}).appendTo(document.body);
 ```
 
-Other notable options: `outputDir`, `port`, `adapter`, `routesDir`, `trailingSlashes`, and `rspack` — a `(config, side) => config` callback applied to each generated config. See the `RspackOptions` type for the full list.
+Other notable options: `outputDir`, `port`, `adapter`, `routesDir`, `trailingSlashes`, `proxy`, `headers`, and `rspack` — a `(config, side) => config` callback applied to each generated config. See the `RspackOptions` type for the full list.
+
+### Dev server: proxy and headers
+
+`dev()` owns its HTTP server (rspack's `devServer` config key does not apply here). Use the `proxy` and `headers` options instead:
+
+```js
+dev({
+  root: import.meta.dirname,
+  proxy: {
+    // Object form, same shape as Vite's server.proxy. Values are
+    // http-proxy-middleware options; keys match path prefixes on segment
+    // boundaries ("/api/v1" covers "/api/v1/*", not "/api/v10").
+    "/api/v1": {
+      target: "https://staging.example.com",
+      changeOrigin: true,
+      // optional: bypass(req, res, proxyOptions) => false to skip this
+      // entry, or a path string to serve it locally instead of proxying
+    },
+  },
+  headers: { "x-dev": "1", "cache-control": "no-store" },
+})
+```
+
+Proxied responses are passed through untouched — the SSE full-reload client is injected only into router-served HTML. Headers are defaults: static/router/proxy handlers may override a header they set themselves. Both options require markopack's dev server (they are ignored in pure-Marko mode, where your server entry owns HTTP).
+
+For environment variables, use rspack's `DefinePlugin` through the config callback (applies to both sides; `builtins.define` from rspack 1.x is gone in rspack 2):
+
+```js
+import { rspack } from "@rspack/core";
+
+build({
+  rspack: (config) => {
+    config.plugins ??= [];
+    config.plugins.push(
+      new rspack.DefinePlugin({
+        __APP_ENV__: JSON.stringify(process.env.APP_ENV ?? "dev"),
+      }),
+    );
+  },
+})
+```
 
 ### Adapters
 
@@ -77,16 +118,33 @@ Other notable options: `outputDir`, `port`, `adapter`, `routesDir`, `trailingSla
 
 ### Customizing Rspack
 
-An `rspack.config.{ts,js,mjs,…}` file in the app root is picked up automatically: an object export is merged into the browser config (arrays like `module.rules` concatenate), a function export receives every generated config as `(config, side) => config | void`.
+An `rspack.config.{ts,js,mjs,…}` file in the app root is picked up automatically. Two forms:
+
+**Object form** — merged into the browser config, with a safe subset (`module`, `resolve`, `devtool`, `stats`) merged into the **server config too**, so one loader rule serves SSR and hydration. `module.rules` concatenate, `resolve.alias` object-merges (dropping the generated `@marko/run/router` aliases would break routing). CSS-module rules (`type: "css"`) are rewritten to `asset/source` on the server side, where CSS is imported as a string.
 
 ```js
-// rspack.config.mjs
+// rspack.config.mjs — .scss compiled by sass-loader on BOTH sides
 export default {
   module: {
-    rules: [{ test: /\.scss$/, use: "sass-loader" }],
+    rules: [{ test: /\.s[ac]ss$/, use: "sass-loader", type: "css" }],
   },
 };
 ```
+
+Keys outside the safe subset (`plugins`, `output`, `entry`, …) apply to the browser config only and produce a warning — use the function form for per-side control. The function form receives **every generated config**: `(config, side) => config | void` (`side` is `"browser"` or `"server"`). `dev({ rspack })` / `build({ rspack })` apply the same callback after the file config.
+
+### Managed invariants (do not touch)
+
+These are owned by markopack's dual-compiler coordination; a config layer that breaks them now fails fast with a descriptive error instead of a mysterious hydration desync at runtime:
+
+| Invariant | Why |
+|---|---|
+| `entry` must keep the generated `index` entry | Routes are virtual modules, and `MarkoRspackPlugin` merges dynamic page entries into it. Replacing it silently drops routing/hydration. |
+| Keep `MarkoRspackPlugin` in `plugins` | Syncs dynamic entries and the client asset manifest between browser and server bundles. Append plugins, never rebuild the array without it. |
+| Keep `output` structure (`dist/client`, `dist/server`, `index.cjs`) | Dev server, manifest injection, and adapters all resolve these paths. |
+| Keep `resolve.alias` for `@marko/run/router` and `virtual:marko-run/*` | Route virtual modules are generated into `.marko-run/` at build time. |
+| Keep `resolve.conditions` / Marko compiler settings | The Marko compiler picks DOM vs HTML output through them. |
+| Keep SSE response wrapping in dev | `res.write`/`res.end` are wrapped to inject the full-reload client; user middleware must compose with it. |
 
 ## Route Conventions
 
@@ -163,6 +221,7 @@ pnpm run test:contract    # generated match objects vs installed @marko/run runt
 pnpm run test:adapters    # adapter build tests
 pnpm run test:crawler     # adapter-static crawler regression guard
 pnpm run test:dev-watch   # dev-server route watching / hot route discovery
+pnpm run test:dev-proxy   # dev proxy/headers + managed-invariant guards
 
 pnpm run sync:marko-run:check   # dry-run vendored-code sync from upstream @marko/run
 pnpm run bench:setup && pnpm run bench:perf

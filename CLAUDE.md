@@ -35,6 +35,9 @@ pnpm run test:crawler
 # Dev-server route watching / hot route discovery
 pnpm run test:dev-watch
 
+# Dev proxy / headers + managed-invariant guards
+pnpm run test:dev-proxy
+
 # Sync vendored code from upstream @marko/run
 pnpm run sync:marko-run          # apply
 pnpm run sync:marko-run:check    # dry-run
@@ -45,7 +48,7 @@ pnpm run bench:setup && pnpm run bench:perf
 
 Workspace management is **pnpm-only** (no package-lock; `linkWorkspacePackages: true` links intra-repo `^0.2.x` specs). The `bench/` fixtures are vendored standalone apps that still carry their own npm lockfiles — `bench-setup.mjs` runs `npm install` inside them on purpose (lockfile comparability); everything else uses pnpm.
 
-There is no formal unit test suite — verification is done via the six scripts above: `verify:example` (smoke test), `test:routes`, `test:contract` (asserts generated match objects against the installed `@marko/run` runtime — guards against upstream drift like the 0.11 `route.options` breakage), `test:adapters`, `test:crawler`, and `test:dev-watch`.
+There is no formal unit test suite — verification is done via the scripts above: `verify:example` (smoke test), `test:routes`, `test:contract` (asserts generated match objects against the installed `@marko/run` runtime — guards against upstream drift like the 0.11 `route.options` breakage), `test:adapters`, `test:crawler`, `test:dev-watch`, and `test:dev-proxy` (dev proxy/headers + managed-invariant guards).
 
 ## Architecture
 

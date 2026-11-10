@@ -11,12 +11,12 @@ import {
   type RouteBuildResult,
 } from "./routes.js";
 import { injectLinkAssetsManifest } from "./link-assets.js";
-import { startDevServer, type DevServer } from "./dev.js";
-import { loadUserConfig, mergeConfig, type UserRspackConfig } from "./user-config.js";
+import { startDevServer, type DevServer, type DevProxyConfig, type DevHeadersConfig } from "./dev.js";
+import { loadUserConfig, mergeConfig, normalizeUserConfigForServer, SERVER_MERGE_KEYS, type UserRspackConfig } from "./user-config.js";
 import MarkoRspackPlugin from "@markopack/compiler";
 
 export type { MarkoRunRspackOptions } from "./routes.js";
-export type { DevServer } from "./dev.js";
+export type { DevServer, DevProxyOptions, DevProxyConfig, DevHeadersConfig } from "./dev.js";
 
 export interface RspackOptions extends MarkoRunRspackOptions {
   root?: string;
@@ -43,10 +43,35 @@ export interface RspackOptions extends MarkoRunRspackOptions {
    *
    * An rspack.config.{ts,js,mjs,...} file in the app root is loaded
    * automatically and applied the same way first: an object export merges
-   * into the browser config (arrays like module.rules/plugins concatenate),
-   * a function export receives every generated config `(config, side)`.
+   * into the browser config (arrays like module.rules/plugins concatenate)
+   * and its safe subset (`module`, `resolve`, `devtool`, `stats`) into the
+   * server config too; a function export receives every generated config
+   * `(config, side)`.
    */
   rspack?: (config: Configuration, side: "browser" | "server") => Configuration | void;
+  /**
+   * Dev-server reverse proxy (dev only; needs the markopack dev server,
+   * i.e. routes enabled). Object form, same shape as Vite's `server.proxy`;
+   * values are http-proxy-middleware options plus an optional `bypass`.
+   *
+   * Keys are path prefixes matched on segment boundaries ("/api/v1" covers
+   * "/api/v1" and "/api/v1/*", not "/api/v10"); the first matching key in
+   * declaration order wins.
+   *
+   * @example
+   * dev({
+   *   proxy: {
+   *     "/api/v1": { target: "https://staging.example.com", changeOrigin: true },
+   *   },
+   * })
+   */
+  proxy?: DevProxyConfig;
+  /**
+   * Default headers set on every dev-server response before dispatch —
+   * handlers (static, router, proxy) may still override a header they set
+   * themselves.
+   */
+  headers?: DevHeadersConfig;
 }
 
 async function buildRoutes(
@@ -205,6 +230,8 @@ export async function dev(options: RspackOptions = {}): Promise<DevServer> {
     virtualModulesPlugin,
     trailingSlashes: options.trailingSlashes || "RedirectWithout",
     markoPlugin,
+    proxy: options.proxy,
+    headers: options.headers,
   });
 }
 
@@ -216,17 +243,76 @@ function customize(
 ): Configuration {
   let customized = config;
   if (userConfig && typeof userConfig !== "function") {
-    // Object export: merged into the browser config only — the node build
-    // (SSR bundle, different target/asset handling) opts in via the
-    // function form instead.
+    // Object export: fully merged into the browser config; the server
+    // config takes the safe subset (SERVER_MERGE_KEYS) so the common
+    // customizations — module.rules, aliases, devtool/stats — serve
+    // both sides (e.g. less-loader for SSR). Everything else stays
+    // browser-side; per-side control is the function form's job.
     if (side === "browser") {
       customized = mergeConfig(customized, userConfig);
+    } else {
+      const picked: Record<string, unknown> = {};
+      const ignored: string[] = [];
+      for (const [key, value] of Object.entries(userConfig)) {
+        if ((SERVER_MERGE_KEYS as readonly string[]).includes(key)) {
+          picked[key] = value;
+        } else {
+          ignored.push(key);
+        }
+      }
+      if (Object.keys(picked).length) {
+        customized = mergeConfig(
+          customized,
+          normalizeUserConfigForServer(picked) as Partial<Configuration>,
+        );
+      }
+      if (ignored.length) {
+        console.warn(
+          `[markopack] rspack.config object keys { ${ignored.join(", ")} } apply to the browser config only — use the function form ((config, side) => …) for server-side control.`,
+        );
+      }
     }
   } else if (userConfig) {
     const result = userConfig(customized, side);
     if (result) customized = result;
   }
-  return options.rspack?.(customized, side) ?? customized;
+  const final = options.rspack?.(customized, side) ?? customized;
+  assertManagedInvariants(final, side);
+  return final;
+}
+
+/**
+ * Fail fast (with a pointer to the README's "Managed invariants" section)
+ * when a config layer broke something markopack depends on — instead of a
+ * mysterious hydration desync at runtime.
+ */
+function assertManagedInvariants(config: Configuration, side: "browser" | "server"): void {
+  const entry = config.entry as unknown;
+  if (
+    !entry ||
+    typeof entry !== "object" ||
+    Array.isArray(entry) ||
+    !Object.prototype.hasOwnProperty.call(entry, "index")
+  ) {
+    throw new Error(
+      `[markopack] The ${side} rspack config replaced the managed \`entry\` — routes are virtual modules and both bundles are driven by the generated \`index\` entries. ` +
+        'To add build behavior, use module.rules / resolve / plugins (append, never replace) instead. See "Managed invariants" in the markopack README.',
+    );
+  }
+  const plugins = (config.plugins ?? []) as unknown[];
+  const hasMarkoPlugin = plugins.some(
+    (p) =>
+      !!p &&
+      typeof p === "object" &&
+      typeof (p as { name?: unknown }).name === "string" &&
+      /^MarkoRspack(Browser|Server)Plugin$/.test((p as { name: string }).name),
+  );
+  if (!hasMarkoPlugin) {
+    throw new Error(
+      `[markopack] The ${side} rspack config dropped the MarkoRspackPlugin — it syncs entries and the asset manifest between the browser and server bundles; without it hydration desyncs. ` +
+        'Append plugins, never rebuild the array without it. See "Managed invariants" in the markopack README.',
+    );
+  }
 }
 
 function withMarkoPlugin(

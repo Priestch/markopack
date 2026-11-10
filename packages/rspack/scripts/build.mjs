@@ -26,6 +26,7 @@ const external = [
   "@markopack/compiler/*",
   "sirv",
   "picocolors",
+  "http-proxy-middleware",
 ];
 
 await build({

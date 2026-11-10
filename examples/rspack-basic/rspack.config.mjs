@@ -1,7 +1,9 @@
-// App-level rspack config — merged into markopack's generated browser
-// config (module.rules concatenate with the generated ones). Preprocessors
-// live here instead of markopack's defaults: install the toolchain you use
-// (here: sass + sass-loader) and add its rule.
+// App-level rspack config (object form): merged into the browser config and,
+// for the safe subset (`module`, `resolve`, `devtool`, `stats`), into the
+// server config too — one rule serves SSR and hydration. Preprocessors live
+// here instead of markopack's defaults: install the toolchain you use
+// (here: sass + sass-loader) and add its rule. CSS rules are rewritten to
+// asset/source on the server side, where CSS imports are strings.
 /** @type {import("@rspack/core").Configuration} */
 export default {
   module: {

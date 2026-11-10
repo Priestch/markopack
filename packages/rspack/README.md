@@ -16,9 +16,16 @@ import { build, dev } from "@markopack/rspack";
 // Production build
 await build({ root: process.cwd() });
 
-// Dev server with hot reload
-const server = await dev({ root: process.cwd(), port: 3000 });
+// Dev server with hot reload, reverse proxy, and default headers
+const server = await dev({
+  root: process.cwd(),
+  port: 3000,
+  proxy: { "/api/v1": { target: "https://staging.example.com", changeOrigin: true } },
+  headers: { "cache-control": "no-store" },
+});
 ```
+
+See the [main README](../../README.md) for config customization (`rspack.config.*`, the `rspack` callback) and the list of managed invariants.
 
 ## Options
 
@@ -33,6 +40,11 @@ const server = await dev({ root: process.cwd(), port: 3000 });
 | `adapter` | `null` | Adapter plugin (node, static, netlify) |
 | `trailingSlashes` | `"RedirectWithout"` | Trailing slash handling |
 | `debug` | `false` | Debug logging |
+| `rspack` | — | `(config, side) => config` callback applied to both generated configs |
+| `proxy` | — | Dev-only reverse proxy: `{ "/prefix": http-proxy-middleware options }` |
+| `headers` | — | Dev-only default response headers: `{ name: value }` |
+| `routes` | `true` | Set `false` for pure-Marko mode (no `@marko/run`) |
+| `serverEntry` | `"./src/server.ts"` | Server entry for pure-Marko mode |
 
 ## Adapters
 

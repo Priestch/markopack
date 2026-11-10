@@ -8,6 +8,8 @@ import { rspack } from "@rspack/core";
 import type { Compiler, MultiCompiler, MultiStats, Stats } from "@rspack/core";
 import type MarkoRspackPlugin from "@markopack/compiler";
 import type { Adapter } from "@markopack/core/types";
+/** http-proxy-middleware options (target, changeOrigin, ws, pathRewrite, …). */
+import type { Options as HttpProxyMiddlewareOptions } from "http-proxy-middleware";
 import { buildLinkAssetsManifest } from "./link-assets.js";
 import {
   watchRoutes,
@@ -17,6 +19,31 @@ import {
 import type { MarkoRunRspackOptions, RouteBuildResult } from "./routes.js";
 
 const projectRequire = createRequire(import.meta.url);
+
+export interface DevProxyOptions extends HttpProxyMiddlewareOptions {
+  /**
+   * Run before proxying a matched request. Return:
+   * - `false` — skip this entry (the next matching entry, then normal
+   *   dev-server handling, applies)
+   * - a string — rewrite the request URL to it and handle it locally
+   *   (static assets / router) instead of proxying
+   * - `undefined` — proceed with the proxy
+   */
+  bypass?: (
+    req: http.IncomingMessage,
+    res: http.ServerResponse,
+    options: DevProxyOptions,
+  ) => string | false | void;
+}
+
+/**
+ * Dev-server reverse proxy (`dev({ proxy })`), object form — same shape as
+ * Vite's `server.proxy`. Keys are path prefixes.
+ */
+export type DevProxyConfig = Record<string, DevProxyOptions>;
+
+/** Default headers set on every dev-server response (`dev({ headers })`). */
+export type DevHeadersConfig = Record<string, string | string[]>;
 
 export interface DevServer {
   /** Actual listening port (0 in pure-Marko mode, where the entry owns it). */
@@ -43,6 +70,8 @@ export async function startDevServer(
     };
     trailingSlashes?: NonNullable<MarkoRunRspackOptions["trailingSlashes"]>;
     markoPlugin?: MarkoRspackPlugin;
+    proxy?: DevProxyConfig;
+    headers?: DevHeadersConfig;
   },
 ): Promise<DevServer> {
   const { outputDir, port, root } = opts;
@@ -149,6 +178,96 @@ export async function startDevServer(
     });
   }
 
+  // ---- dev proxy (dev({ proxy })) ------------------------------------------
+  // Registered BESIDE the reload handling: proxy dispatch happens before the
+  // static/router chain, and only router-served HTML passes through
+  // injectReloadScript — so proxied bodies are passed through untouched
+  // (no reload-script injection into proxied responses).
+  const proxyHandlers: {
+    key: string;
+    entry: DevProxyOptions;
+    /** Entry carries its own pathFilter — eligibility is decided inside hpm. */
+    hasOwnPathFilter: boolean;
+    middleware: (
+      req: http.IncomingMessage,
+      res: http.ServerResponse,
+      next: (err?: any) => void,
+    ) => void;
+  }[] = [];
+  if (opts.proxy) {
+    const { createProxyMiddleware } = await import("http-proxy-middleware");
+    for (const [key, entry] of Object.entries(opts.proxy)) {
+      if (!entry || typeof entry !== "object" || entry.target == null) {
+        throw new Error(`dev({ proxy })["${key}"]: a target is required.`);
+      }
+      const { bypass, ...hpmOptions } = entry;
+      proxyHandlers.push({
+        key,
+        entry,
+        hasOwnPathFilter: hpmOptions.pathFilter != null,
+        middleware: createProxyMiddleware({
+          ...hpmOptions,
+          // Same segment-prefix semantics as the dispatch below; as a filter
+          // so the middleware (and its ws upgrades) decline consistently.
+          pathFilter:
+            hpmOptions.pathFilter ??
+            ((p: string) => proxyKeyMatches(p.split("?")[0], key)),
+        }),
+      });
+    }
+  }
+
+  /** Default dev headers, applied to every response before dispatch. */
+  const headerEntries = opts.headers ? Object.entries(opts.headers) : null;
+
+  /** Segment-boundary prefix match: "/api/v1" covers "/api/v1" and "/api/v1/*", not "/api/v10". */
+  function proxyKeyMatches(pathname: string, key: string): boolean {
+    if (key === "" || key === "/") return true;
+    if (key.endsWith("/")) key = key.slice(0, -1);
+    return pathname === key || pathname.startsWith(key + "/");
+  }
+
+  /**
+   * Try each proxy entry in declaration order; the first whose key matches
+   * (or that carries its own pathFilter) handles the request. fallThrough =
+   * the static → router chain.
+   */
+  function tryProxy(
+    pathname: string,
+    req: http.IncomingMessage,
+    res: http.ServerResponse,
+    fallThrough: () => void,
+    index = 0,
+  ): void {
+    for (let i = index; i < proxyHandlers.length; i++) {
+      const handler = proxyHandlers[i];
+      if (!handler.hasOwnPathFilter && !proxyKeyMatches(pathname, handler.key)) {
+        continue;
+      }
+      if (handler.entry.bypass) {
+        const result = handler.entry.bypass(req, res, handler.entry);
+        if (result === false) continue; // skip this entry, try the next
+        if (typeof result === "string") {
+          // Serve the returned path locally instead of proxying.
+          req.url = result;
+          fallThrough();
+          return;
+        }
+      }
+      handler.middleware(req, res, (err?: any) => {
+        if (err) {
+          res.statusCode = 500;
+          res.end(`Proxy error (${handler.key}): ${err?.message ?? err}`);
+          return;
+        }
+        // Declined by a user pathFilter — continue with the next entry.
+        tryProxy(pathname, req, res, fallThrough, i + 1);
+      });
+      return;
+    }
+    fallThrough();
+  }
+
   let server: http.Server | null = null;
   // Actual listening port — findFreePort may bump the requested one, so the
   // caller (e.g. the fixture harness) reads it from the DevServer instead of
@@ -179,6 +298,12 @@ export async function startDevServer(
         return;
       }
 
+      // Default headers (dev({ headers })): set before dispatch so every
+      // handler's response carries them; a handler may still override.
+      if (headerEntries) {
+        for (const [key, value] of headerEntries) res.setHeader(key, value);
+      }
+
       const serveRouter = () => {
         if (routerReady && (globalThis as any).__marko_run__?.fetch) {
           injectReloadScript(res);
@@ -197,33 +322,69 @@ export async function startDevServer(
         }
       };
 
-      // 带扩展名的 URL 先按静态资产服务；链路 = clientDist → public/ → router。
-      // router 兜底不可省——dot-path 路由（如 /sitemap.xml）不能被静态查找吞成
-      // 404。publicDir 会话中途出现也能被接住（每请求一次 existsSync，量级无碍）。
-      // 匹配用解析出的 pathname，不是原始 req.url：带查询串的资产地址
-      // （/static/js/index.js?v=…）以查询参数结尾，用原始 URL 会漏进
-      // router 变 404。
-      if (pathname && /\.\w+$/.test(pathname)) {
-        const serveStatic = (): void => {
-          if (!publicSirv && fs.existsSync(publicDir)) {
-            publicSirv = projectRequire("sirv")(publicDir, { dev: true });
-          }
-          if (publicSirv) {
-            publicSirv(req, res, serveRouter);
+      // Static assets → router chain: what a request falls back to when no
+      // proxy entry claims it. Recompute the pathname from req.url — a
+      // proxy bypass may have rewritten it to a local path.
+      const dispatch = (): void => {
+        const dispatchPath = req.url
+          ? new URL(req.url, "http://localhost").pathname
+          : "";
+        // 带扩展名的 URL 先按静态资产服务；链路 = clientDist → public/ → router。
+        // router 兜底不可省——dot-path 路由（如 /sitemap.xml）不能被静态查找吞成
+        // 404。publicDir 会话中途出现也能被接住（每请求一次 existsSync，量级无碍）。
+        // 匹配用解析出的 pathname，不是原始 req.url：带查询串的资产地址
+        // （/static/js/index.js?v=…）以查询参数结尾，用原始 URL 会漏进
+        // router 变 404。
+        if (dispatchPath && /\.\w+$/.test(dispatchPath)) {
+          const serveStatic = (): void => {
+            if (!publicSirv && fs.existsSync(publicDir)) {
+              publicSirv = projectRequire("sirv")(publicDir, { dev: true });
+            }
+            if (publicSirv) {
+              publicSirv(req, res, serveRouter);
+              return;
+            }
+            serveRouter();
+          };
+          if (sirvFn) {
+            sirvFn(req, res, serveStatic);
             return;
           }
-          serveRouter();
-        };
-        if (sirvFn) {
-          sirvFn(req, res, serveStatic);
+          serveStatic();
           return;
         }
-        serveStatic();
+
+        serveRouter();
+      };
+
+      if (proxyHandlers.length) {
+        tryProxy(pathname, req, res, dispatch);
         return;
       }
-
-      serveRouter();
+      dispatch();
     });
+
+    // WebSocket upgrades: first ws:true entry whose key matches the
+    // pathname handles the upgrade; unmatched upgrades are dropped.
+    const wsHandlers = proxyHandlers.filter((h) => h.entry.ws === true);
+    if (wsHandlers.length) {
+      server.on("upgrade", (req, socket, head) => {
+        const pathname = req.url
+          ? new URL(req.url, "http://localhost").pathname
+          : "";
+        // Prefer an entry whose key matches; fall back to one with its own
+        // pathFilter (hpm's upgrade() re-checks the filter itself).
+        const handler =
+          wsHandlers.find(
+            (h) => !h.hasOwnPathFilter && proxyKeyMatches(pathname, h.key),
+          ) ?? wsHandlers.find((h) => h.hasOwnPathFilter);
+        if (handler) {
+          (handler.middleware as any).upgrade?.(req, socket, head);
+        } else {
+          socket.destroy();
+        }
+      });
+    }
 
     const initSirv = () => {
       if (!sirvFn && fs.existsSync(clientDist)) {
@@ -250,6 +411,13 @@ export async function startDevServer(
     // Pure Marko mode: the user's server entry owns the HTTP server.
     // markopack only watches and reloads the server bundle. Exporting
     // close() from the entry releases its port before each reload.
+    if (opts.proxy || opts.headers) {
+      console.warn(
+        pc.yellow(
+          "[markopack] proxy/headers need markopack's dev server (routes mode) — ignored in pure-Marko mode, where your server entry owns HTTP.",
+        ),
+      );
+    }
     console.log();
     console.log(`  ${pc.green("➜")}  ${pc.bold("Marko")} dev — your server entry owns the port.`);
     console.log(`  ${pc.green("➜")}  Export ${pc.bold("close()")} from the server entry for clean reloads.`);

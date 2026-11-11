@@ -134,9 +134,83 @@ guessing):
   once and referenced by every entry sharing it (~127 KB raw / 36 KB gz
   saved). Polish item, not a blocker.
 
+### sharedCss recipe tried and reverted (2026-11-11)
+
+The site-level `optimization.splitChunks.cacheGroups.sharedCss` recipe
+(`type: /^css(?:\/|$)/, chunks: "all", minChunks: 2, minSize: 0,
+priority: 10`, no `name`, no `enforce`) works mechanically — 34 → 10 CSS
+files, zero md5-duplicated groups — but Playwright computed-style A/B
+against the pre-change build found **two real cascade regressions**, both
+rooted in pdflux depending on cross-chunk load order (bootstrap → reset →
+page CSS), which splitChunks re-partitioning does not preserve:
+
+1. `reset.scss` extracted into the shared chunk landed *before* the
+   bootstrap vendor chunk → `body { line-height: 1.666 }` overridden by
+   bootstrap's 1.5 (header/nav computed line-height 26.656 → 24 px).
+2. Excluding `reset.scss` via `test` pushed it to the *end* of the link
+   order → `.default-btn { display: inline-block }` (same specificity as
+   `.download-mobile { display: none }`, pure order tie-break) overrode
+   it — the mobile-download button became visible on desktop.
+
+`reset.scss` is an order-significant override stylesheet by design (its
+header comment says so: loaded after bootstrap.css, before page styles in
+the Gatsby original). The recipe is not applicable to this site unless
+bootstrap+reset+shell are merged into a single CSS module to preserve
+order. Reverted; the wart stands as documented above. Full evidence in
+`pai-websites/docs/pdflux-analysis.md` §3.7 and the site's
+`rspack.config.mjs` comment block.
+
 Context from the same comparison: deployable JS+CSS is now 2,488 KB raw /
 737 KB gz across 22 files (Gatsby live) vs 1,036 KB / 263 KB gz across 59
 files (markopack); first-visit totals favor markopack 2.0–8.4× per route
 and cross-route deltas 1.2–100× (`/guide/charge` 21.2 vs 17.2 KB gz,
 `/apidocs` 295.0 vs 2.9 KB gz). Full tables: `pai-websites/docs/pdflux-analysis.md` §3.6.
+
+## Downstream recipe — shared CSS (self-serve, pending promotion to default)
+
+Why `splitChunks: { chunks: 'all' }` alone didn't dedupe the remaining
+8.4 KB: rspack's production default `minSize: 20000` rejects split
+candidates below 20 KB, so shared CSS modules smaller than that stay in
+every entry (byte-identical copies, distinct `[name]`-derived filenames).
+The `marko-runtime` pin deduped its CSS only by ride-along (css follows
+the js module graph), not by selecting css modules itself. A site can fix
+this locally today — no markopack change needed — with its own cacheGroup:
+
+```js
+// rspack.config.mjs (site root) — object form deep-merges cacheGroups
+// per key, so the managed `marko-runtime` group is untouched.
+export default {
+  optimization: {
+    splitChunks: {
+      cacheGroups: {
+        sharedCss: {
+          type: /^css(?:\/|$)/, // 'css' alone misses css/module + css/auto
+          chunks: "all",
+          minChunks: 2,
+          minSize: 0, // per-group override; global js minSize unaffected
+          priority: 10, // above default (-20) / defaultVendors (-10)
+          // No `name`, no `enforce`: a fixed name merges unrelated shared
+          // css into one chunk (pages fetch styles they don't need) and
+          // enforce bypasses maxInitialRequests.
+        },
+      },
+    },
+  },
+};
+```
+
+Per-entry manifests pick the shared `.chunk.css` up automatically
+(asset collection walks `entrypoint.chunks`). Verify with a
+duplicate-content scan over `dist/static/css` (expect zero groups >1)
+plus a cascade spot-check: splitChunks does not guarantee css import
+order — if a page's style priority changes, raise `minChunks` or scope
+`test` rather than reaching for `enforce`. Full rollback is the existing
+`optimization.splitChunks = false` opt-out.
+
+Promotion criterion: if pdflux validates dedup + cascade (the numbers
+above suggest ~127 KB raw / 36 KB gz saved), upstream adds this
+cacheGroup to the generated config as a **tunable default, not a managed
+invariant** — removing it can only cost payload, never hydration, so the
+guard stays limited to `marko-runtime`. Until then this section is the
+of-record recipe for downstream sites.
 

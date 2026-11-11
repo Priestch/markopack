@@ -103,3 +103,40 @@ level up.
 - `/` and `/en` share the landing payload (xgplayer etc. downloaded once).
 - First-visit totals no worse than today; second-route navigation downloads
   the page delta only.
+
+### Measured (2026-11-11, pdflux `pnpm build`, post-implementation)
+
+All four criteria pass, with headroom:
+
+- Guide page entry JS: **282 bytes** (was 127 KB); per-guide CSS **8.4 KB**
+  delta (was a 220 KB byte-identical copy ×16). Site-wide `static/js`:
+  **640 KB total** (was 3.4 MB) — 5.3×.
+- `marko-runtime.fbbbc089.js` (55 KB) appears once as a named initial chunk —
+  the cacheGroup pin is visible in the output.
+- Landing payload (incl. xgplayer) lives in shared chunks; `index`/`en`
+  entries are 1.0 KB page shells. `/` and `/en` no longer duplicate it.
+- Second-route navigation (e.g. `/` → `/guide/…`) downloads the 282-byte
+  entry + tiny CSS delta; every shared chunk is cached from the first visit.
+
+### Post-acceptance cross-check (2026-11-11, full-site comparison vs Gatsby)
+
+One remaining wart, found while comparing the whole deployable artifact
+against the live Gatsby original (method: `webpack.stats.json` on
+pdflux.com byte-verified against the CDN `webpack-runtime` `a.u` chunk
+map — the full 21-JS + 1-CSS deployment inventory, no network-capture
+guessing):
+
+- **Per-entry CSS is still duplicated when byte-identical.** The 16 real
+  guide pages each emit a `guide_*.css` of 8,405 B with the *same*
+  contenthash (`91fba42a`) but distinct filenames — md5-verified 16/17
+  byte-identical (the 17th is the `/guide` redirect page). #15 removed
+  the entry-level duplication; identical per-entry CSS could be emitted
+  once and referenced by every entry sharing it (~127 KB raw / 36 KB gz
+  saved). Polish item, not a blocker.
+
+Context from the same comparison: deployable JS+CSS is now 2,488 KB raw /
+737 KB gz across 22 files (Gatsby live) vs 1,036 KB / 263 KB gz across 59
+files (markopack); first-visit totals favor markopack 2.0–8.4× per route
+and cross-route deltas 1.2–100× (`/guide/charge` 21.2 vs 17.2 KB gz,
+`/apidocs` 295.0 vs 2.9 KB gz). Full tables: `pai-websites/docs/pdflux-analysis.md` §3.6.
+

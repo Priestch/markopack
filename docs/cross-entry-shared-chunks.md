@@ -134,15 +134,13 @@ guessing):
   once and referenced by every entry sharing it (~127 KB raw / 36 KB gz
   saved). Polish item, not a blocker.
 
-### sharedCss recipe tried and reverted (2026-11-11)
+### sharedCss recipe — resolved with a companion fix (2026-11-12)
 
-The site-level `optimization.splitChunks.cacheGroups.sharedCss` recipe
-(`type: /^css(?:\/|$)/, chunks: "all", minChunks: 2, minSize: 0,
-priority: 10`, no `name`, no `enforce`) works mechanically — 34 → 10 CSS
-files, zero md5-duplicated groups — but Playwright computed-style A/B
-against the pre-change build found **two real cascade regressions**, both
-rooted in pdflux depending on cross-chunk load order (bootstrap → reset →
-page CSS), which splitChunks re-partitioning does not preserve:
+Resolution of the wart above. The recipe works mechanically (34 → 10 CSS
+files, zero md5-duplicated groups) but the first attempt on pdflux found
+**two real cascade regressions** in Playwright computed-style A/B, both
+rooted in the site depending on cross-chunk load order (bootstrap →
+reset → page CSS), which splitChunks re-partitioning does not preserve:
 
 1. `reset.scss` extracted into the shared chunk landed *before* the
    bootstrap vendor chunk → `body { line-height: 1.666 }` overridden by
@@ -152,13 +150,25 @@ page CSS), which splitChunks re-partitioning does not preserve:
    `.download-mobile { display: none }`, pure order tie-break) overrode
    it — the mobile-download button became visible on desktop.
 
-`reset.scss` is an order-significant override stylesheet by design (its
-header comment says so: loaded after bootstrap.css, before page styles in
-the Gatsby original). The recipe is not applicable to this site unless
-bootstrap+reset+shell are merged into a single CSS module to preserve
-order. Reverted; the wart stands as documented above. Full evidence in
-`pai-websites/docs/pdflux-analysis.md` §3.7 and the site's
-`rspack.config.mjs` comment block.
+**The fix that makes the recipe applicable**: merge bootstrap + reset
+into a **single CSS module** (`src/styles/base.scss` — note dart-sass
+passes `@import "x.css"` with extension through as a plain-CSS
+`@import url()`, so bootstrap must be compiled from
+`bootstrap/scss/bootstrap`), import it from every page *and* the guide
+theme's `mp-layout.marko`, and re-add the `sharedCss` cacheGroup. Module-
+internal order is then structurally guaranteed, and the extracted base
+chunk consistently lands first in the link order.
+
+Verified result: CSS 25 → 9 files (480 KB → 328 KB raw, 93 KB → 51 KB
+gz, −45%), deployable JS+CSS 1,012 KB/257 KB → 860 KB/215 KB gz; Playwright
+computed styles zero-diff across 7 pages / 64 element samples (both
+regression canaries pass). First-visit CSS per route is unchanged (the
+base chunk must load anyway) — the win is cross-page caching (15 guide
+pages no longer each carry an identical 8.4 KB copy) and deploy weight.
+
+**Takeaway for other markopack sites**: order-significant override
+stylesheets (reset-style files) must be merged into the same module as
+the stylesheet they override before splitChunks grouping is safe.
 
 Context from the same comparison: deployable JS+CSS is now 2,488 KB raw /
 737 KB gz across 22 files (Gatsby live) vs 1,036 KB / 263 KB gz across 59

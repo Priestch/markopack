@@ -10,11 +10,14 @@
  *   4. First error propagates out of crawl() after in-flight visits settle.
  *   5. Asset links are skipped (no visit, no junk `<asset>.html`), while
  *      dotted page routes (`/docs/v1.2`) keep being crawled.
+ *   6. Existing public HTML is preserved and not requested from the router;
+ *      HTML-suffixed routes without a public file still get discovered.
+ *   7. Only the configured 404 page is written for a 404 response.
  *
- * Run: npm run test:crawler
+ * Run: pnpm run test:crawler
  */
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync, readdirSync } from "node:fs";
+import { mkdtempSync, rmSync, readdirSync, mkdirSync, writeFileSync, readFileSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import createCrawler from "../packages/adapter-static/dist/crawler.js";
@@ -160,6 +163,88 @@ try {
     );
     console.log("  asset-link skip + dotted-route crawl ✓");
   }
+
+  // --- 6: copied public HTML is not a router page -------------------------
+  {
+    const dest = path.join(out, "public-html");
+    mkdirSync(path.join(dest, "legal"), { recursive: true });
+    const publicFiles = new Map([
+      ["privacy_policy.html", "<!DOCTYPE html><p>Public privacy policy</p>"],
+      ["terms_of_service.html", "<!DOCTYPE html><p>Public terms</p>"],
+      ["legal/privacy policy.htm", "<!DOCTYPE html><p>Nested public policy</p>"],
+    ]);
+    for (const [file, body] of publicFiles) {
+      writeFileSync(path.join(dest, file), body);
+    }
+    const visits = [];
+    const crawler = createCrawler(async (request) => {
+      const p = new URL(request.url).pathname;
+      visits.push(p);
+      if (p === "/") {
+        return new Response(`
+          <a href="/privacy_policy.html">Privacy</a>
+          <a href="/terms_of_service.html?lang=en#terms">Terms</a>
+          <a href="/legal/privacy%20policy.htm">Nested</a>
+          <a href="/generated.html">Real HTML-suffixed route</a>
+        `, { headers: { "content-type": "text/html" } });
+      }
+      if (p === "/generated.html") {
+        return new Response("<p>Generated route</p>", {
+          headers: { "content-type": "text/html" },
+        });
+      }
+      return new Response("<p>Not found</p>", {
+        status: 404,
+        headers: { "content-type": "text/html" },
+      });
+    }, { out: dest, notFoundPath: "/404" });
+    const results = await crawler.crawl(["/"]);
+    assert.deepEqual(visits.sort(), ["/", "/404", "/generated.html"]);
+    assert.equal(results.notFound.length, 0, "public HTML reported as missing");
+    for (const [file, body] of publicFiles) {
+      assert.equal(readFileSync(path.join(dest, file), "utf8"), body);
+      assert.ok(!existsSync(path.join(dest, file + ".html")), `${file}.html written`);
+    }
+    assert.ok(results.success.some(({ path, file }) => path === "/generated.html" && file));
+    // Explicit routes remain authoritative even when a copied public file
+    // has the same URL: seed paths must not be filtered like discovered links.
+    const seededVisits = [];
+    const seededCrawler = createCrawler(async (request) => {
+      seededVisits.push(new URL(request.url).pathname);
+      return new Response("<p>Explicit route</p>", {
+        headers: { "content-type": "text/html" },
+      });
+    }, { out: dest });
+    const seeded = await seededCrawler.crawl(["/privacy_policy.html"]);
+    assert.deepEqual(seededVisits, ["/privacy_policy.html"]);
+    assert.equal(seeded.success.length, 1);
+    assert.equal(readFileSync(seeded.success[0].file, "utf8"), "<p>Explicit route</p>");
+    assert.equal(readFileSync(path.join(dest, "privacy_policy.html"), "utf8"), publicFiles.get("privacy_policy.html"));
+    console.log("  public HTML preserved + HTML-suffixed route discovery + explicit seeds ✓");
+  }
+
+  // --- 7: missing links stay diagnostic-only; configured 404 still writes --
+  for (const notFoundPath of ["/404", "/404/"]) {
+    const dest = path.join(out, notFoundPath.endsWith("/") ? "404-slash" : "404");
+    const crawler = createCrawler(async (request) => {
+      const p = new URL(request.url).pathname;
+      return new Response(p === "/"
+        ? '<a href="/missing-page">Broken page</a><a href="/missing.html">Missing HTML</a>'
+        : "<p>Not found</p>", {
+        status: p === "/" ? 200 : 404,
+        headers: { "content-type": "text/html" },
+      });
+    }, { out: dest, notFoundPath });
+    const results = await crawler.crawl(["/"]);
+    assert.deepEqual(results.notFound.map(({ path }) => path).sort(), ["/missing-page", "/missing.html"]);
+    assert.deepEqual(results.records.map(({ path }) => path).sort(), ["/missing-page", "/missing.html"]);
+    assert.ok(results.notFound.every(({ file }) => file === undefined), "404 response wrote a junk page");
+    const notFoundFile = path.join(dest, notFoundPath.endsWith("/") ? "404/index.html" : "404.html");
+    assert.equal(readFileSync(notFoundFile, "utf8"), "<p>Not found</p>");
+    assert.ok(!existsSync(path.join(dest, "missing-page.html")));
+    assert.ok(!existsSync(path.join(dest, "missing.html.html")));
+  }
+  console.log("  only configured 404 page written (with/without trailing slash) ✓");
 
   console.log("crawler tests: all passed");
 } finally {

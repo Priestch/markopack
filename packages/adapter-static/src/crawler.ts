@@ -89,11 +89,44 @@ export default function createCrawler(
   let idle: (() => void) | undefined;
   let collected: VisitResult[] = [];
 
+  function isExistingHtmlFile(path: string) {
+    // Public files have already been copied to `out`, but makeRequest may call
+    // only the router (not the static-file middleware). Don't mistake a link
+    // to one of those documents for a route. Check the exact file, not just
+    // the extension: /generated.html can still be a real application route.
+    let pathname: string;
+    try {
+      pathname = decodeURIComponent(new URL(path, origin).pathname);
+    } catch {
+      return false;
+    }
+    if (!/\.html?$/i.test(pathname)) return false;
+
+    const file = nodePath.resolve(out, "." + pathname);
+    const relative = nodePath.relative(out, file);
+    if (
+      relative === ".." ||
+      relative.startsWith(".." + nodePath.sep) ||
+      nodePath.isAbsolute(relative)
+    ) {
+      return false;
+    }
+    try {
+      return fs.statSync(file).isFile();
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException).code;
+      if (code === "ENOENT" || code === "ENOTDIR") return false;
+      throw error;
+    }
+  }
+
   function scheduleVisit(path: string) {
     if (assetExtRe.test(path)) return;
     if (!seen.has(path)) {
       seen.add(path);
-      nextPaths.push(path);
+      // Explicit seed routes bypass this check and retain precedence over
+      // copied public files, matching the adapter's build-output policy.
+      if (!isExistingHtmlFile(path)) nextPaths.push(path);
     }
   }
 
@@ -174,10 +207,14 @@ export default function createCrawler(
           }
           break;
         case 404:
-          // An asset-ish path (seeded directly, or an extension the filter above
-          // doesn't list) has no page to prerender — never write a `404.html`
-          // document next to where the real file belongs.
-          if (!notFoundPath || !htmlContentType || assetExtRe.test(path)) {
+          // Only the configured 404 route is an output document. A broken
+          // link stays in the diagnostics, never becoming a static page
+          // containing the router's 404 body (e.g. policy.html.html).
+          if (
+            !notFoundPath ||
+            !htmlContentType ||
+            withoutTrailingSlash(path) !== withoutTrailingSlash(notFoundPath)
+          ) {
             abortController.abort();
             return { path, status, ok: true };
           }

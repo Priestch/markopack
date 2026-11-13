@@ -1,5 +1,30 @@
 # @markopack/rspack
 
+## 0.5.0
+
+### Minor Changes
+
+- 06957b9: Extract cross-entry shared chunks by default (from the pdflux pilot feedback, `docs/cross-entry-shared-chunks.md`):
+
+  - Browser builds now set `optimization.splitChunks = { chunks: "all" }`. Previously every route entry was self-contained: rspack's default `chunks: "async"` never extracts modules shared across _initial_ entries, so the marko runtime, theme deps and site-common components were copied into every entry — measured as 16 byte-identical 220 KB stylesheets on the pilot site, and a full landing-payload re-download on every cross-route navigation. Shared modules now extract once; second-route visits download the page delta only.
+  - `@marko/runtime-tags` is pinned into one named initial chunk (`marko-runtime` cacheGroup, `enforce: true`, `priority: 10`), making the ready()/readyIds single-instance invariant structural instead of accidental — without the pin, `chunks: "all"` could duplicate the runtime between an initial shared chunk and an async load-entry chunk and break lazy hydration silently.
+  - `optimization.splitChunks.cacheGroups` now deep-merges per key in object-form `rspack.config.*` (like `resolve.alias`), so tuning thresholds or adding vendor groups can't drop the managed group.
+  - New managed-invariant guards fail fast when a config layer changes `optimization.runtimeChunk` or modifies/drops the `marko-runtime` cacheGroup, with a pointer to the README's "Managed invariants" section. Explicit opt-out: `optimization.splitChunks = false` returns to self-contained entries.
+
+- 39f6575: Expose more of rspack's capability surface through markopack:
+
+  - `dev({ proxy })` — reverse proxy for runtime APIs, in the familiar Vite `server.proxy` object form (`{ "/api/v1": { target, changeOrigin, bypass, ... } }`). Proxied responses are passed through untouched: the SSE full-reload client is injected only into router-served HTML. WebSocket upgrades and segment-boundary prefix matching are supported.
+  - `dev({ headers })` — default response headers applied to static, router, and proxied responses.
+  - `rspack.config.*` object exports now merge their safe subset (`module`, `resolve`, `devtool`, `stats`) into the **server config too**, so one loader rule (e.g. `less-loader`/`sass-loader`) serves SSR and hydration. CSS rules are rewritten to `asset/source` on the server side; `resolve.alias` object-merges instead of dropping generated route aliases. Keys outside the subset still apply to the browser only and now warn.
+  - Managed invariants (`entry`, `MarkoRspackPlugin`) are guarded with fail-fast errors pointing at the new "Managed invariants" README section.
+  - Documented the `DefinePlugin` recipe for environment variables and a `test:dev-proxy` regression script.
+
+### Patch Changes
+
+- Updated dependencies [f29c13f]
+  - @markopack/compiler@0.5.0
+  - @markopack/core@0.5.0
+
 ## 0.4.0
 
 ### Minor Changes

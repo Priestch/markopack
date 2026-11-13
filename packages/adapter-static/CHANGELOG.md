@@ -1,5 +1,13 @@
 # @markopack/adapter-static
 
+## 0.5.0
+
+### Patch Changes
+
+- cb16cd8: Skip links with known static-asset extensions when crawling: a discovered `<a>` pointing at a file (e.g. an image pipeline's link-to-original wrapping `/_markopress/image/…/pic.png`) is not a page — visiting it only logged 404 noise and wrote a junk `pic.png.html` next to where the real file belongs. The 404 branch also no longer writes a `404.html` document for asset-ish paths. Deliberately an extension allowlist rather than a generic `/\.\w+$/`, so dotted page routes (`/docs/v1.2`) keep being crawled.
+- 0108ff0: Preserve existing public HTML documents during link discovery instead of requesting them from the router and reporting false 404s. Only skip exact existing `.html`/`.htm` files (including encoded paths and query strings), so HTML-suffixed application routes and explicit crawl seeds remain supported. Write a 404 response only for the configured 404 page; broken links remain diagnostics and no longer produce junk documents such as `privacy_policy.html.html`.
+  - @markopack/core@0.5.0
+
 ## 0.4.0
 
 ### Minor Changes
